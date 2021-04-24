@@ -34,7 +34,7 @@
 /*
  * 最大预分配长度
  */
-#define SDS_MAX_PREALLOC (1024*1024)
+#define SDS_MAX_PREALLOC (1024 * 1024)
 
 #include <sys/types.h>
 #include <stdarg.h>
@@ -47,16 +47,16 @@ typedef char *sds;
 /*
  * 保存字符串对象的结构
  */
-struct sdshdr {
-    
+struct sdshdr
+{
     // buf 中已占用空间的长度
     int len;
-
     // buf 中剩余可用空间的长度
     int free;
-
     // 数据空间
     char buf[];
+    // 常用来构成缓冲区，可以实现动态数组，可以这样子分配空间：malloc(sizeof(struct sdshdr + buff_len))
+    // 这样就是实现了动态数组，但是释放空间的时候也要回滚
 };
 
 /*
@@ -64,8 +64,9 @@ struct sdshdr {
  *
  * T = O(1)
  */
-static inline size_t sdslen(const sds s) {
-    struct sdshdr *sh = (void*)(s-(sizeof(struct sdshdr)));
+static inline size_t sdslen(const sds s)
+{
+    struct sdshdr *sh = (void *)(s - (sizeof(struct sdshdr)));
     return sh->len;
 }
 
@@ -74,8 +75,9 @@ static inline size_t sdslen(const sds s) {
  *
  * T = O(1)
  */
-static inline size_t sdsavail(const sds s) {
-    struct sdshdr *sh = (void*)(s-(sizeof(struct sdshdr)));
+static inline size_t sdsavail(const sds s)
+{
+    struct sdshdr *sh = (void *)(s - (sizeof(struct sdshdr)));
     return sh->free;
 }
 
