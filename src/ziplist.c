@@ -309,22 +309,17 @@ address                                |                          |        |
  * 保存 ziplist 节点信息的结构
  */
 typedef struct zlentry {
-
     // prevrawlen ：前置节点的长度
     // prevrawlensize ：编码 prevrawlen 所需的字节大小
     unsigned int prevrawlensize, prevrawlen;
-
     // len ：当前节点值的长度
     // lensize ：编码 len 所需的字节大小
     unsigned int lensize, len;
-
     // 当前节点 header 的大小
     // 等于 prevrawlensize + lensize
     unsigned int headersize;
-
     // 当前节点值所使用的编码类型
     unsigned char encoding;
-
     // 指向当前节点的指针
     unsigned char *p;
 
@@ -760,44 +755,32 @@ static zlentry zipEntry(unsigned char *p) {
  * T = O(1)
  */
 unsigned char *ziplistNew(void) {
-
     // ZIPLIST_HEADER_SIZE 是 ziplist 表头的大小
-    // 1 字节是表末端 ZIP_END 的大小
+    // 4(zlbytes)+4(zltail)+2(zllen)+1(zlend)
     unsigned int bytes = ZIPLIST_HEADER_SIZE+1;
-
     // 为表头和表末端分配空间
     unsigned char *zl = zmalloc(bytes);
-
     // 初始化表属性
     ZIPLIST_BYTES(zl) = intrev32ifbe(bytes);
     ZIPLIST_TAIL_OFFSET(zl) = intrev32ifbe(ZIPLIST_HEADER_SIZE);
     ZIPLIST_LENGTH(zl) = 0;
-
     // 设置表末端
     zl[bytes-1] = ZIP_END;
-
     return zl;
 }
 
 /* Resize the ziplist. 
- *
  * 调整 ziplist 的大小为 len 字节。
- *
  * 当 ziplist 原有的大小小于 len 时，扩展 ziplist 不会改变 ziplist 原有的元素。
- *
  * T = O(N)
  */
 static unsigned char *ziplistResize(unsigned char *zl, unsigned int len) {
-
     // 用 zrealloc ，扩展时不改变现有元素
     zl = zrealloc(zl,len);
-
     // 更新 bytes 属性
     ZIPLIST_BYTES(zl) = intrev32ifbe(len);
-
     // 重新设置表末端
     zl[len-1] = ZIP_END;
-
     return zl;
 }
 
@@ -846,10 +829,8 @@ static unsigned char *__ziplistCascadeUpdate(unsigned char *zl, unsigned char *p
     size_t offset, noffset, extra;
     unsigned char *np;
     zlentry cur, next;
-
     // T = O(N^2)
     while (p[0] != ZIP_END) {
-
         // 将 p 所指向的节点的信息保存到 cur 结构中
         cur = zipEntry(p);
         // 当前节点的长度
@@ -857,28 +838,22 @@ static unsigned char *__ziplistCascadeUpdate(unsigned char *zl, unsigned char *p
         // 计算编码当前节点的长度所需的字节数
         // T = O(1)
         rawlensize = zipPrevEncodeLength(NULL,rawlen);
-
         /* Abort if there is no next entry. */
         // 如果已经没有后续空间需要更新了，跳出
         if (p[rawlen] == ZIP_END) break;
-
         // 取出后续节点的信息，保存到 next 结构中
         // T = O(1)
         next = zipEntry(p+rawlen);
-
         /* Abort when "prevlen" has not changed. */
         // 后续节点编码当前节点的空间已经足够，无须再进行任何处理，跳出
         // 可以证明，只要遇到一个空间足够的节点，
         // 那么这个节点之后的所有节点的空间都是足够的
         if (next.prevrawlen == rawlen) break;
-
         if (next.prevrawlensize < rawlensize) {
-
             /* The "prevlen" field of "next" needs more bytes to hold
              * the raw length of "cur". */
             // 执行到这里，表示 next 空间的大小不足以编码 cur 的长度
             // 所以程序需要对 next 节点的（header 部分）空间进行扩展
-
             // 记录 p 的偏移量
             offset = p-zl;
             // 计算需要增加的节点数量
@@ -888,12 +863,10 @@ static unsigned char *__ziplistCascadeUpdate(unsigned char *zl, unsigned char *p
             zl = ziplistResize(zl,curlen+extra);
             // 还原指针 p
             p = zl+offset;
-
             /* Current pointer and offset for next element. */
             // 记录下一节点的偏移量
             np = p+rawlen;
             noffset = np-zl;
-
             /* Update tail offset when next element is not the tail element. */
             // 当 next 节点不是表尾节点时，更新列表到表尾节点的偏移量
             // 
@@ -922,7 +895,6 @@ static unsigned char *__ziplistCascadeUpdate(unsigned char *zl, unsigned char *p
                 ZIPLIST_TAIL_OFFSET(zl) =
                     intrev32ifbe(intrev32ifbe(ZIPLIST_TAIL_OFFSET(zl))+extra);
             }
-
             /* Move the tail to the back. */
             // 向后移动 cur 节点之后的数据，为 cur 的新 header 腾出空间
             //
