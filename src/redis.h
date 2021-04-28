@@ -813,149 +813,101 @@ typedef struct redisOpArray {
 struct clusterState;
 
 struct redisServer {
-
     /* General */
-
     // 配置文件的绝对路径
     char *configfile;           /* Absolute config file path, or NULL */
-
     // serverCron() 每秒调用的次数
     int hz;                     /* serverCron() calls frequency in hertz */
-
-    // 数据库
+    // 数据库，保存着服务器中的所有数据库
     redisDb *db;
-
     // 命令表（受到 rename 配置选项的作用）
     dict *commands;             /* Command table */
     // 命令表（无 rename 配置选项的作用）
     dict *orig_commands;        /* Command table before command renaming. */
-
     // 事件状态
     aeEventLoop *el;
-
     // 最近一次使用时钟
     unsigned lruclock:REDIS_LRU_BITS; /* Clock for LRU eviction */
-
     // 关闭服务器的标识
     int shutdown_asap;          /* SHUTDOWN needed ASAP */
-
     // 在执行 serverCron() 时进行渐进式 rehash
     int activerehashing;        /* Incremental rehash in serverCron() */
-
     // 是否设置了密码
     char *requirepass;          /* Pass for AUTH command, or NULL */
-
     // PID 文件
     char *pidfile;              /* PID file path */
-
     // 架构类型
     int arch_bits;              /* 32 or 64 depending on sizeof(long) */
-
     // serverCron() 函数的运行次数计数器
     int cronloops;              /* Number of times the cron function run */
-
     // 本服务器的 RUN ID
     char runid[REDIS_RUN_ID_SIZE+1];  /* ID always different at every exec. */
-
     // 服务器是否运行在 SENTINEL 模式
     int sentinel_mode;          /* True if this instance is a Sentinel. */
-
-
     /* Networking */
-
     // TCP 监听端口
     int port;                   /* TCP listening port */
-
     int tcp_backlog;            /* TCP listen() backlog */
-
     // 地址
     char *bindaddr[REDIS_BINDADDR_MAX]; /* Addresses we should bind to */
     // 地址数量
     int bindaddr_count;         /* Number of addresses in server.bindaddr[] */
-
     // UNIX 套接字
     char *unixsocket;           /* UNIX socket path */
     mode_t unixsocketperm;      /* UNIX socket permission */
-
     // 描述符
     int ipfd[REDIS_BINDADDR_MAX]; /* TCP socket file descriptors */
     // 描述符数量
     int ipfd_count;             /* Used slots in ipfd[] */
-
     // UNIX 套接字文件描述符
     int sofd;                   /* Unix socket file descriptor */
-
     int cfd[REDIS_BINDADDR_MAX];/* Cluster bus listening socket */
     int cfd_count;              /* Used slots in cfd[] */
-
     // 一个链表，保存了所有客户端状态结构
     list *clients;              /* List of active clients */
     // 链表，保存了所有待关闭的客户端
     list *clients_to_close;     /* Clients to close asynchronously */
-
     // 链表，保存了所有从服务器，以及所有监视器
     list *slaves, *monitors;    /* List of slaves and MONITORs */
-
     // 服务器的当前客户端，仅用于崩溃报告
     redisClient *current_client; /* Current client, only used on crash report */
-
     int clients_paused;         /* True if clients are currently paused */
     mstime_t clients_pause_end_time; /* Time when we undo clients_paused */
-
     // 网络错误
     char neterr[ANET_ERR_LEN];   /* Error buffer for anet.c */
-
     // MIGRATE 缓存
     dict *migrate_cached_sockets;/* MIGRATE cached sockets */
-
-
     /* RDB / AOF loading information */
-
     // 这个值为真时，表示服务器正在进行载入
     int loading;                /* We are loading data from disk if true */
-
     // 正在载入的数据的大小
     off_t loading_total_bytes;
-
     // 已载入数据的大小
     off_t loading_loaded_bytes;
-
     // 开始进行载入的时间
     time_t loading_start_time;
     off_t loading_process_events_interval_bytes;
-
     /* Fast pointers to often looked up command */
     // 常用命令的快捷连接
     struct redisCommand *delCommand, *multiCommand, *lpushCommand, *lpopCommand,
                         *rpopCommand;
-
-
     /* Fields used only for stats */
-
     // 服务器启动时间
     time_t stat_starttime;          /* Server start time */
-
     // 已处理命令的数量
     long long stat_numcommands;     /* Number of processed commands */
-
     // 服务器接到的连接请求数量
     long long stat_numconnections;  /* Number of connections received */
-
     // 已过期的键数量
     long long stat_expiredkeys;     /* Number of expired keys */
-
     // 因为回收内存而被释放的过期键的数量
     long long stat_evictedkeys;     /* Number of evicted keys (maxmemory) */
-
     // 成功查找键的次数
     long long stat_keyspace_hits;   /* Number of successful lookups of keys */
-
     // 查找键失败的次数
     long long stat_keyspace_misses; /* Number of failed lookups of keys */
-
     // 已使用内存峰值
     size_t stat_peak_memory;        /* Max used memory record */
-
     // 最后一次执行 fork() 时消耗的时间
     long long stat_fork_time;       /* Time needed to perform latest fork() */
 
@@ -1010,6 +962,7 @@ struct redisServer {
     int tcpkeepalive;               /* Set SO_KEEPALIVE if non-zero. */
     int active_expire_enabled;      /* Can be disabled for testing purposes. */
     size_t client_max_querybuf_len; /* Limit for client query buffer length */
+    // 初始化时会根据dbnum属性来决定应该创建几个数据库
     int dbnum;                      /* Total number of configured DBs */
     int daemonize;                  /* True if running as a daemon */
     // 客户端输出缓冲区大小限制
@@ -1293,13 +1246,9 @@ struct redisServer {
     // 脚本是否超时
     int lua_timedout;     /* True if we reached the time limit for script
                              execution. */
-
     // 是否要杀死脚本
     int lua_kill;         /* Kill the script if true. */
-
-
     /* Assert & bug reporting */
-
     char *assert_failed;
     char *assert_file;
     int assert_line;
