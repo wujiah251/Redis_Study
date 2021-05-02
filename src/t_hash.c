@@ -34,23 +34,14 @@
  * Hash type API
  *----------------------------------------------------------------------------*/
 
-/* Check the length of a number of objects to see if we need to convert a
- * ziplist to a real hash. 
- *
- * 对 argv 数组中的多个对象进行检查，
+/* 对 argv 数组中的多个对象进行检查，
  * 看是否需要将对象的编码从 REDIS_ENCODING_ZIPLIST 转换成 REDIS_ENCODING_HT
- *
- * Note that we only check string encoded objects
- * as their string length can be queried in constant time. 
- *
  * 注意程序只检查字符串值，因为它们的长度可以在常数时间内取得。
  */
 void hashTypeTryConversion(robj *o, robj **argv, int start, int end) {
     int i;
-
     // 如果对象不是 ziplist 编码，那么直接返回
     if (o->encoding != REDIS_ENCODING_ZIPLIST) return;
-
     // 检查所有输入对象，看它们的字符串值是否超过了指定长度
     for (i = start; i <= end; i++) {
         if (sdsEncodedObject(argv[i]) &&
@@ -64,7 +55,6 @@ void hashTypeTryConversion(robj *o, robj **argv, int start, int end) {
 }
 
 /* Encode given objects in-place when the hash uses a dict. 
- *
  * 当 subject 的编码为 REDIS_ENCODING_HT 时，
  * 尝试对对象 o1 和 o2 进行编码，
  * 以节省更多内存。
@@ -76,17 +66,12 @@ void hashTypeTryObjectEncoding(robj *subject, robj **o1, robj **o2) {
     }
 }
 
-/* Get the value from a ziplist encoded hash, identified by field.
- * Returns -1 when the field cannot be found. 
- *
- * 从 ziplist 编码的 hash 中取出和 field 相对应的值。
- *
+/* 从 ziplist 编码的 hash 中取出和 field 相对应的值。
  * 参数：
  *  field   域
  *  vstr    值是字符串时，将它保存到这个指针
  *  vlen    保存字符串的长度
  *  ll      值是整数时，将它保存到这个指针
- *
  * 查找失败时，函数返回 -1 。
  * 查找成功时，返回 0 。
  */
@@ -100,10 +85,8 @@ int hashTypeGetFromZiplist(robj *o, robj *field,
 
     // 确保编码正确
     redisAssert(o->encoding == REDIS_ENCODING_ZIPLIST);
-
     // 取出未编码的域
     field = getDecodedObject(field);
-
     // 遍历 ziplist ，查找域的位置
     zl = o->ptr;
     fptr = ziplistIndex(zl, ZIPLIST_HEAD);
@@ -131,52 +114,34 @@ int hashTypeGetFromZiplist(robj *o, robj *field,
     return -1;
 }
 
-/* Get the value from a hash table encoded hash, identified by field.
- * Returns -1 when the field cannot be found. 
- *
- * 从 REDIS_ENCODING_HT 编码的 hash 中取出和 field 相对应的值。
- *
+/* 从 REDIS_ENCODING_HT 编码的 hash 中取出和 field 相对应的值。
  * 成功找到值时返回 0 ，没找到返回 -1 。
  */
 int hashTypeGetFromHashTable(robj *o, robj *field, robj **value) {
     dictEntry *de;
-
     // 确保编码正确
     redisAssert(o->encoding == REDIS_ENCODING_HT);
-
     // 在字典中查找域（键）
     de = dictFind(o->ptr, field);
-
     // 键不存在
     if (de == NULL) return -1;
-
     // 取出域（键）的值
     *value = dictGetVal(de);
-
     // 成功找到
     return 0;
 }
 
-/* Higher level function of hashTypeGet*() that always returns a Redis
- * object (either new or with refcount incremented), so that the caller
- * can retain a reference or call decrRefCount after the usage.
- *
- * The lower level function can prevent copy on write so it is
- * the preferred way of doing read operations. */
-/*
+/* 
  * 多态 GET 函数，从 hash 中取出域 field 的值，并返回一个值对象。
- *
  * 找到返回值对象，没找到返回 NULL 。
  */
 robj *hashTypeGetObject(robj *o, robj *field) {
     robj *value = NULL;
-
     // 从 ziplist 中取出值
     if (o->encoding == REDIS_ENCODING_ZIPLIST) {
         unsigned char *vstr = NULL;
         unsigned int vlen = UINT_MAX;
         long long vll = LLONG_MAX;
-
         if (hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll) == 0) {
             // 创建值对象
             if (vstr) {
@@ -185,82 +150,56 @@ robj *hashTypeGetObject(robj *o, robj *field) {
                 value = createStringObjectFromLongLong(vll);
             }
         }
-
     // 从字典中取出值
     } else if (o->encoding == REDIS_ENCODING_HT) {
         robj *aux;
-
         if (hashTypeGetFromHashTable(o, field, &aux) == 0) {
             incrRefCount(aux);
             value = aux;
         }
-
     } else {
         redisPanic("Unknown hash encoding");
     }
-
     // 返回值对象，或者 NULL
     return value;
 }
 
-/* Test if the specified field exists in the given hash. Returns 1 if the field
- * exists, and 0 when it doesn't. 
- *
- * 检查给定域 feild 是否存在于 hash 对象 o 中。
- *
+/* 检查给定域 feild 是否存在于 hash 对象 o 中。
  * 存在返回 1 ，不存在返回 0 。
  */
 int hashTypeExists(robj *o, robj *field) {
-
     // 检查 ziplist
     if (o->encoding == REDIS_ENCODING_ZIPLIST) {
         unsigned char *vstr = NULL;
         unsigned int vlen = UINT_MAX;
         long long vll = LLONG_MAX;
-
         if (hashTypeGetFromZiplist(o, field, &vstr, &vlen, &vll) == 0) return 1;
-
     // 检查字典
     } else if (o->encoding == REDIS_ENCODING_HT) {
         robj *aux;
-
         if (hashTypeGetFromHashTable(o, field, &aux) == 0) return 1;
-
     // 未知编码
     } else {
         redisPanic("Unknown hash encoding");
     }
-
     // 不存在
     return 0;
 }
 
-/* Add an element, discard the old if the key already exists.
- * Return 0 on insert and 1 on update.
- *
- * 将给定的 field-value 对添加到 hash 中，
+/* 将给定的 field-value 对添加到 hash 中，
  * 如果 field 已经存在，那么删除旧的值，并关联新值。
- *
- * This function will take care of incrementing the reference count of the
- * retained fields and value objects. 
- *
  * 这个函数负责对 field 和 value 参数进行引用计数自增。
- *
  * 返回 0 表示元素已经存在，这次函数调用执行的是更新操作。
- *
  * 返回 1 则表示函数执行的是新添加操作。
  */
 int hashTypeSet(robj *o, robj *field, robj *value) {
     int update = 0;
-
     // 添加到 ziplist
     if (o->encoding == REDIS_ENCODING_ZIPLIST) {
         unsigned char *zl, *fptr, *vptr;
-
         // 解码成字符串或者数字
         field = getDecodedObject(field);
         value = getDecodedObject(value);
-
         // 遍历整个 ziplist ，尝试查找并更新 field （如果它已经存在的话）
         zl = o->ptr;
         fptr = ziplistIndex(zl, ZIPLIST_HEAD);
@@ -268,24 +207,17 @@ int hashTypeSet(robj *o, robj *field, robj *value) {
             // 定位到域 field
             fptr = ziplistFind(fptr, field->ptr, sdslen(field->ptr), 1);
             if (fptr != NULL) {
-                /* Grab pointer to the value (fptr points to the field) */
                 // 定位到域的值
                 vptr = ziplistNext(zl, fptr);
                 redisAssert(vptr != NULL);
-
                 // 标识这次操作为更新操作
                 update = 1;
-
-                /* Delete value */
                 // 删除旧的键值对
                 zl = ziplistDelete(zl, &vptr);
-
-                /* Insert new value */
                 // 添加新的键值对
                 zl = ziplistInsert(zl, vptr, value->ptr, sdslen(value->ptr));
             }
         }
-
         // 如果这不是更新操作，那么这就是一个添加操作
         if (!update) {
             /* Push new field/value pair onto the tail of the ziplist */
@@ -293,22 +225,16 @@ int hashTypeSet(robj *o, robj *field, robj *value) {
             zl = ziplistPush(zl, field->ptr, sdslen(field->ptr), ZIPLIST_TAIL);
             zl = ziplistPush(zl, value->ptr, sdslen(value->ptr), ZIPLIST_TAIL);
         }
-        
         // 更新对象指针
         o->ptr = zl;
-
         // 释放临时对象
         decrRefCount(field);
         decrRefCount(value);
-
-        /* Check if the ziplist needs to be converted to a hash table */
         // 检查在添加操作完成之后，是否需要将 ZIPLIST 编码转换成 HT 编码
         if (hashTypeLength(o) > server.hash_max_ziplist_entries)
             hashTypeConvert(o, REDIS_ENCODING_HT);
-
     // 添加到字典
     } else if (o->encoding == REDIS_ENCODING_HT) {
-
         // 添加或替换键值对到字典
         // 添加返回 1 ，替换返回 0
         if (dictReplace(o->ptr, field, value)) { /* Insert */
@@ -316,22 +242,15 @@ int hashTypeSet(robj *o, robj *field, robj *value) {
         } else { /* Update */
             update = 1;
         }
-
         incrRefCount(value);
     } else {
         redisPanic("Unknown hash encoding");
     }
-
     // 更新/添加指示变量
     return update;
 }
 
-/* Delete an element from a hash.
- *
- * 将给定 field 及其 value 从哈希表中删除
- *
- * Return 1 on deleted and 0 on not found. 
- *
+/* 将给定 field 及其 value 从哈希表中删除
  * 删除成功返回 1 ，因为域不存在而造成的删除失败返回 0 。
  */
 int hashTypeDelete(robj *o, robj *field) {
@@ -340,9 +259,7 @@ int hashTypeDelete(robj *o, robj *field) {
     // 从 ziplist 中删除
     if (o->encoding == REDIS_ENCODING_ZIPLIST) {
         unsigned char *zl, *fptr;
-
         field = getDecodedObject(field);
-
         zl = o->ptr;
         fptr = ziplistIndex(zl, ZIPLIST_HEAD);
         if (fptr != NULL) {
@@ -356,33 +273,25 @@ int hashTypeDelete(robj *o, robj *field) {
                 deleted = 1;
             }
         }
-
         decrRefCount(field);
-
     // 从字典中删除
     } else if (o->encoding == REDIS_ENCODING_HT) {
         if (dictDelete((dict*)o->ptr, field) == REDIS_OK) {
             deleted = 1;
-
-            /* Always check if the dictionary needs a resize after a delete. */
             // 删除成功时，看字典是否需要收缩
             if (htNeedsResize(o->ptr)) dictResize(o->ptr);
         }
-
     } else {
         redisPanic("Unknown hash encoding");
     }
-
     return deleted;
 }
 
-/* Return the number of elements in a hash. 
- *
- * 返回哈希表的 field-value 对数量
- */
+/* 
+返回哈希表的 field-value 对数量
+*/
 unsigned long hashTypeLength(robj *o) {
     unsigned long length = ULONG_MAX;
-
     if (o->encoding == REDIS_ENCODING_ZIPLIST) {
         // ziplist 中，每个 field-value 对都需要使用两个节点来保存
         length = ziplistLen(o->ptr) / 2;
@@ -391,42 +300,30 @@ unsigned long hashTypeLength(robj *o) {
     } else {
         redisPanic("Unknown hash encoding");
     }
-
     return length;
 }
 
-/*
- * 创建一个哈希类型的迭代器
+/* 创建一个哈希类型的迭代器
  * hashTypeIterator 类型定义在 redis.h
- *
  * 复杂度：O(1)
- *
- * 返回值：
- *  hashTypeIterator
+ * 返回值：hashTypeIterator
  */
 hashTypeIterator *hashTypeInitIterator(robj *subject) {
-
     hashTypeIterator *hi = zmalloc(sizeof(hashTypeIterator));
-
     // 指向对象
     hi->subject = subject;
-
     // 记录编码
     hi->encoding = subject->encoding;
-
     // 以 ziplist 的方式初始化迭代器
     if (hi->encoding == REDIS_ENCODING_ZIPLIST) {
         hi->fptr = NULL;
         hi->vptr = NULL;
-
     // 以字典的方式初始化迭代器
     } else if (hi->encoding == REDIS_ENCODING_HT) {
         hi->di = dictGetIterator(subject->ptr);
-
     } else {
         redisPanic("Unknown hash encoding");
     }
-
     // 返回迭代器
     return hi;
 }
@@ -435,80 +332,59 @@ hashTypeIterator *hashTypeInitIterator(robj *subject) {
  * 释放迭代器
  */
 void hashTypeReleaseIterator(hashTypeIterator *hi) {
-
     // 释放字典迭代器
     if (hi->encoding == REDIS_ENCODING_HT) {
         dictReleaseIterator(hi->di);
     }
-
     // 释放 ziplist 迭代器
     zfree(hi);
 }
 
-/* Move to the next entry in the hash. 
- *
- * 获取哈希中的下一个节点，并将它保存到迭代器。
- *
- * could be found and REDIS_ERR when the iterator reaches the end. 
- *
+/* 获取哈希中的下一个节点，并将它保存到迭代器。
  * 如果获取成功，返回 REDIS_OK ，
- *
  * 如果已经没有元素可获取（为空，或者迭代完毕），那么返回 REDIS_ERR 。
  */
 int hashTypeNext(hashTypeIterator *hi) {
-
     // 迭代 ziplist
     if (hi->encoding == REDIS_ENCODING_ZIPLIST) {
         unsigned char *zl;
         unsigned char *fptr, *vptr;
-
         zl = hi->subject->ptr;
         fptr = hi->fptr;
         vptr = hi->vptr;
-
         // 第一次执行时，初始化指针
         if (fptr == NULL) {
             /* Initialize cursor */
             redisAssert(vptr == NULL);
             fptr = ziplistIndex(zl, 0);
-
         // 获取下一个迭代节点
         } else {
             /* Advance cursor */
             redisAssert(vptr != NULL);
             fptr = ziplistNext(zl, vptr);
         }
-
         // 迭代完毕，或者 ziplist 为空
         if (fptr == NULL) return REDIS_ERR;
-
         /* Grab pointer to the value (fptr points to the field) */
         // 记录值的指针
         vptr = ziplistNext(zl, fptr);
         redisAssert(vptr != NULL);
-
         /* fptr, vptr now point to the first or next pair */
         // 更新迭代器指针
         hi->fptr = fptr;
         hi->vptr = vptr;
-
     // 迭代字典
     } else if (hi->encoding == REDIS_ENCODING_HT) {
         if ((hi->de = dictNext(hi->di)) == NULL) return REDIS_ERR;
-
     // 未知编码
     } else {
         redisPanic("Unknown hash encoding");
     }
-
     // 迭代成功
     return REDIS_OK;
 }
 
-/* Get the field or value at iterator cursor, for an iterator on a hash value
- * encoded as a ziplist. Prototype is similar to `hashTypeGetFromZiplist`. 
- *
- * 从 ziplist 编码的哈希中，取出迭代器指针当前指向节点的域或值。
+/* 从 ziplist 编码的哈希中，取出迭代器指针当前指向节点的域或值。
  */
 void hashTypeCurrentFromZiplist(hashTypeIterator *hi, int what,
                                 unsigned char **vstr,
@@ -532,38 +408,26 @@ void hashTypeCurrentFromZiplist(hashTypeIterator *hi, int what,
     }
 }
 
-/* Get the field or value at iterator cursor, for an iterator on a hash value
- * encoded as a ziplist. Prototype is similar to `hashTypeGetFromHashTable`. 
- *
+/* 
  * 根据迭代器的指针，从字典编码的哈希中取出所指向节点的 field 或者 value 。
  */
 void hashTypeCurrentFromHashTable(hashTypeIterator *hi, int what, robj **dst) {
     redisAssert(hi->encoding == REDIS_ENCODING_HT);
-
     // 取出键
     if (what & REDIS_HASH_KEY) {
         *dst = dictGetKey(hi->de);
-
     // 取出值
     } else {
         *dst = dictGetVal(hi->de);
     }
 }
 
-/* A non copy-on-write friendly but higher level version of hashTypeCurrent*()
- * that returns an object with incremented refcount (or a new object). 
- *
- * 一个非 copy-on-write 友好，但是层次更高的 hashTypeCurrent() 函数，
+/* 一个非 copy-on-write 友好，但是层次更高的 hashTypeCurrent() 函数，
  * 这个函数返回一个增加了引用计数的对象，或者一个新对象。
- *
- * It is up to the caller to decrRefCount() the object if no reference is
- * retained. 
- *
  * 当使用完返回对象之后，调用者需要对对象执行 decrRefCount() 。
  */
 robj *hashTypeCurrentObject(hashTypeIterator *hi, int what) {
     robj *dst;
-
     // ziplist
     if (hi->encoding == REDIS_ENCODING_ZIPLIST) {
         unsigned char *vstr = NULL;

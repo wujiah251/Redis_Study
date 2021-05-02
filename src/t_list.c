@@ -1223,34 +1223,18 @@ void unblockClientWaitingData(redisClient *c) {
     }
 }
 
-/* If the specified key has clients blocked waiting for list pushes, this
- * function will put the key reference into the server.ready_keys list.
- * Note that db->ready_keys is a hash table that allows us to avoid putting
- * the same key again and again in the list in case of multiple pushes
- * made by a script or in the context of MULTI/EXEC.
- *
- * 如果有客户端正因为等待给定 key 被 push 而阻塞，
+/* 如果有客户端正因为等待给定 key 被 push 而阻塞，
  * 那么将这个 key 的放进 server.ready_keys 列表里面。
- *
  * 注意 db->ready_keys 是一个哈希表，
  * 这可以避免在事务或者脚本中，将同一个 key 一次又一次添加到列表的情况出现。
- *
- * The list will be finally processed by handleClientsBlockedOnLists() 
- *
  * 这个列表最终会被 handleClientsBlockedOnLists() 函数处理。
  */
 void signalListAsReady(redisClient *c, robj *key) {
     readyList *rl;
-
-    /* No clients blocking for this key? No need to queue it. */
     // 没有客户端被这个键阻塞，直接返回
     if (dictFind(c->db->blocking_keys,key) == NULL) return;
-
-    /* Key was already signaled? No need to queue it again. */
     // 这个键已经被添加到 ready_keys 中了，直接返回
     if (dictFind(c->db->ready_keys,key) != NULL) return;
-
-    /* Ok, we need to queue this key into server.ready_keys. */
     // 创建一个 readyList 结构，保存键和数据库
     // 然后将 readyList 添加到 server.ready_keys 中
     rl = zmalloc(sizeof(*rl));
@@ -1259,51 +1243,18 @@ void signalListAsReady(redisClient *c, robj *key) {
     incrRefCount(key);
     listAddNodeTail(server.ready_keys,rl);
 
-    /* We also add the key in the db->ready_keys dictionary in order
-     * to avoid adding it multiple times into a list with a simple O(1)
-     * check. 
-     *
-     * 将 key 添加到 c->db->ready_keys 集合中，防止重复添加
-     */
+    //将 key 添加到 c->db->ready_keys 集合中，防止重复添加
     incrRefCount(key);
     redisAssert(dictAdd(c->db->ready_keys,key,NULL) == DICT_OK);
 }
 
-/* This is a helper function for handleClientsBlockedOnLists(). It's work
- * is to serve a specific client (receiver) that is blocked on 'key'
- * in the context of the specified 'db', doing the following:
- * 
- * 函数对被阻塞的客户端 receiver 、造成阻塞的 key 、 key 所在的数据库 db
+/* 函数对被阻塞的客户端 receiver 、造成阻塞的 key 、 key 所在的数据库 db
  * 以及一个值 value 和一个位置值 where 执行以下动作：
- *
- * 1) Provide the client with the 'value' element.
- *
- *    将 value 提供给 receiver
- *
- * 2) If the dstkey is not NULL (we are serving a BRPOPLPUSH) also push the
- *    'value' element on the destination list (the LPUSH side of the command).
- *
- *    如果 dstkey 不为空（BRPOPLPUSH的情况），
- *    那么也将 value 推入到 dstkey 指定的列表中。
- *
- * 3) Propagate the resulting BRPOP, BLPOP and additional LPUSH if any into
- *    the AOF and replication channel.
- *
- *    将 BRPOP 、 BLPOP 和可能有的 LPUSH 传播到 AOF 和同步节点
- *
- * The argument 'where' is REDIS_TAIL or REDIS_HEAD, and indicates if the
- * 'value' element was popped fron the head (BLPOP) or tail (BRPOP) so that
- * we can propagate the command properly.
- * 
+ * 1) 将 value 提供给 receiver
+ * 2) 如果 dstkey 不为空（BRPOPLPUSH的情况），那么也将 value 推入到 dstkey 指定的列表中。
+ * 3) 将 BRPOP 、 BLPOP 和可能有的 LPUSH 传播到 AOF 和同步节点
  * where 可能是 REDIS_TAIL 或者 REDIS_HEAD ，用于识别该 value 是从那个地方 POP
  * 出来，依靠这个参数，可以同样传播 BLPOP 或者 BRPOP 。
-
- * The function returns REDIS_OK if we are able to serve the client, otherwise
- * REDIS_ERR is returned to signal the caller that the list POP operation
- * should be undone as the client was not served: This only happens for
- * BRPOPLPUSH that fails to push the value to the destination key as it is
- * of the wrong type. 
- *
  * 如果一切成功，返回 REDIS_OK 。
  * 如果执行失败，那么返回 REDIS_ERR ，让 Redis 撤销对目标节点的 POP 操作。
  * 失败的情况只会出现在 BRPOPLPUSH 命令中，

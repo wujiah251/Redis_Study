@@ -1231,23 +1231,16 @@ unsigned char *ziplistPush(unsigned char *zl, unsigned char *s, unsigned int sle
  * T = O(N)
  */
 unsigned char *ziplistIndex(unsigned char *zl, int index) {
-
     unsigned char *p;
-
     zlentry entry;
-
     // 处理负数索引
     if (index < 0) {
-
         // 将索引转换为正数
         index = (-index)-1;
-        
         // 定位到表尾节点
         p = ZIPLIST_ENTRY_TAIL(zl);
-
         // 如果列表不为空，那么。。。
         if (p[0] != ZIP_END) {
-
             // 从表尾向表头遍历
             entry = zipEntry(p);
             // T = O(N)
@@ -1258,13 +1251,10 @@ unsigned char *ziplistIndex(unsigned char *zl, int index) {
                 entry = zipEntry(p);
             }
         }
-
     // 处理正数索引
     } else {
-
         // 定位到表头节点
         p = ZIPLIST_ENTRY_HEAD(zl);
-
         // T = O(N)
         while (p[0] != ZIP_END && index--) {
             // 后移指针
@@ -1272,22 +1262,13 @@ unsigned char *ziplistIndex(unsigned char *zl, int index) {
             p += zipRawEntryLength(p);
         }
     }
-
     // 返回结果
     return (p[0] == ZIP_END || index > 0) ? NULL : p;
 }
 
-/* Return pointer to next entry in ziplist.
- *
- * zl is the pointer to the ziplist
- * p is the pointer to the current element
- *
- * The element after 'p' is returned, otherwise NULL if we are at the end. */
-/*
- * 返回 p 所指向节点的后置节点。
- *
+
+/* 返回 p 所指向节点的后置节点。
  * 如果 p 为表末端，或者 p 已经是表尾节点，那么返回 NULL 。
- *
  * T = O(1)
  */
 unsigned char *ziplistNext(unsigned char *zl, unsigned char *p) {

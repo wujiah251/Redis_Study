@@ -35,38 +35,19 @@
 /* ZSETs are ordered sets using two data structures to hold the same elements
  * in order to get O(log(N)) INSERT and REMOVE operations into a sorted
  * data structure.
- *
  * ZSET 同时使用两种数据结构来持有同一个元素，
  * 从而提供 O(log(N)) 复杂度的有序数据结构的插入和移除操作。
- *
- * The elements are added to a hash table mapping Redis objects to scores.
- * At the same time the elements are added to a skip list mapping scores
- * to Redis objects (so objects are sorted by scores in this "view"). 
- *
  * 哈希表将 Redis 对象映射到分值上。
  * 而跳跃表则将分值映射到 Redis 对象上，
  * 以跳跃表的视角来看，可以说 Redis 对象是根据分值来排序的。
  */
 
-/* This skiplist implementation is almost a C translation of the original
- * algorithm described by William Pugh in "Skip Lists: A Probabilistic
- * Alternative to Balanced Trees", modified in three ways:
- *
- * Redis 的跳跃表实现和 William Pugh 
+/* Redis 的跳跃表实现和 William Pugh 
  * 在《Skip Lists: A Probabilistic Alternative to Balanced Trees》论文中
  * 描述的跳跃表基本相同，不过在以下三个地方做了修改：
- *
- * a) this implementation allows for repeated scores.
- *    这个实现允许有重复的分值
- *
- * b) the comparison is not just by key (our 'score') but by satellite data.
- *    对元素的比对不仅要比对他们的分值，还要比对他们的对象
- *
- * c) there is a back pointer, so it's a doubly linked list with the back
- * pointers being only at "level 1". This allows to traverse the list
- * from tail to head, useful for ZREVRANGE. 
- *    每个跳跃表节点都带有一个后退指针，
- *    它允许程序在执行像 ZREVRANGE 这样的命令时，从表尾向表头遍历跳跃表。
+ * a) 这个实现允许有重复的分值
+ * b) 对元素的比对不仅要比对他们的分值，还要比对他们的对象
+ * c) 每个跳跃表节点都带有一个后退指针，它允许程序在执行像 ZREVRANGE 这样的命令时，从表尾向表头遍历跳跃表。
  */
 
 #include "redis.h"
