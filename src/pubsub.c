@@ -377,9 +377,7 @@ int pubsubUnsubscribeAllPatterns(redisClient *c, int notify) {
     return count;
 }
 
-/* Publish a message 
- *
- * 将 message 发送到所有订阅频道 channel 的客户端，
+/* 将 message 发送到所有订阅频道 channel 的客户端，
  * 以及所有订阅了和 channel 频道匹配的模式的客户端。
  */
 int pubsubPublishMessage(robj *channel, robj *message) {
@@ -396,12 +394,10 @@ int pubsubPublishMessage(robj *channel, robj *message) {
         list *list = dictGetVal(de);
         listNode *ln;
         listIter li;
-
         // 遍历客户端链表，将 message 发送给它们
         listRewind(list,&li);
         while ((ln = listNext(&li)) != NULL) {
             redisClient *c = ln->value;
-
             // 回复客户端。
             // 示例：
             // 1) "message"
@@ -414,7 +410,6 @@ int pubsubPublishMessage(robj *channel, robj *message) {
             addReplyBulk(c,channel);
             // 消息内容
             addReplyBulk(c,message);
-
             // 接收客户端计数
             receivers++;
         }
@@ -487,7 +482,6 @@ void unsubscribeCommand(redisClient *c) {
 
 void psubscribeCommand(redisClient *c) {
     int j;
-
     for (j = 1; j < c->argc; j++)
         pubsubSubscribePattern(c,c->argv[j]);
 }

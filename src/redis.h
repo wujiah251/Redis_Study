@@ -932,10 +932,10 @@ struct redisServer {
     // 下一条慢查询日志的 ID
     long long slowlog_entry_id;     /* SLOWLOG current entry ID */
 
-    // 服务器配置 slowlog-log-slower-than 选项的值
+    // 服务器配置 slowlog-log-slower-than 选项的值（超过这个时长的命令会被保存到慢查询日志中）
     long long slowlog_log_slower_than; /* SLOWLOG time limit (to get logged) */
 
-    // 服务器配置 slowlog-max-len 选项的值
+    // 服务器配置 slowlog-max-len，慢查询日志最大条数
     unsigned long slowlog_max_len;     /* SLOWLOG max number of items logged */
     size_t resident_set_size;       /* RSS sampled in serverCron(). */
     /* The following two are used to track instantaneous "load" in terms
@@ -1316,33 +1316,24 @@ struct redisFunctionSym {
 
 // 用于保存被排序值及其权重的结构
 typedef struct _redisSortObject {
-
     // 被排序键的值
     robj *obj;
-
     // 权重
     union {
-
         // 排序数字值时使用
         double score;
-
         // 排序字符串时使用
         robj *cmpobj;
-
     } u;
-
 } redisSortObject;
 
 // 排序操作
 typedef struct _redisSortOperation {
-
     // 操作的类型，可以是 GET 、 DEL 、INCR 或者 DECR
     // 目前只实现了 GET
     int type;
-
     // 用户给定的模式
     robj *pattern;
-
 } redisSortOperation;
 
 /* Structure to hold list iteration abstraction.
