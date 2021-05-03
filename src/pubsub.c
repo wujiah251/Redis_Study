@@ -38,7 +38,6 @@
  */
 void freePubsubPattern(void *p) {
     pubsubPattern *pat = p;
-
     decrRefCount(pat->pattern);
     zfree(pat);
 }
@@ -48,16 +47,11 @@ void freePubsubPattern(void *p) {
  */
 int listMatchPubsubPattern(void *a, void *b) {
     pubsubPattern *pa = a, *pb = b;
-
     return (pa->client == pb->client) &&
            (equalStringObjects(pa->pattern,pb->pattern));
 }
 
-/* Subscribe a client to a channel. Returns 1 if the operation succeeded, or
- * 0 if the client was already subscribed to that channel. 
- *
- * 设置客户端 c 订阅频道 channel 。
- *
+/* 设置客户端 c 订阅频道 channel 。
  * 订阅成功返回 1 ，如果客户端已经订阅了该频道，那么返回 0 。
  */
 int pubsubSubscribeChannel(redisClient *c, robj *channel) {

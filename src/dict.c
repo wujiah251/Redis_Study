@@ -608,11 +608,6 @@ int dictReplace(dict *d, void *key, void *val)
     // 运行到这里，说明键 key 已经存在，那么找出包含这个 key 的节点
     // T = O(1)
     entry = dictFind(d, key);
-    /* Set the new value and free the old one. Note that it is important
-     * to do that in this order, as the value may just be exactly the same
-     * as the previous one. In this context, think to reference counting,
-     * you want to increment (set), and then decrement (free), and not the
-     * reverse. */
     // 先保存原有的值的指针
     auxentry = *entry;
     // 然后设置新的值
