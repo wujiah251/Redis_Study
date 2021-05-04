@@ -30,8 +30,11 @@
 
 
 #include <string.h>
+#include <sys/select.h>
+#include "ae.h"
 
 typedef struct aeApiState {
+    // 监听的读写fd集合
     fd_set rfds, wfds;
     /* We need to have a copy of the fd sets as it's not safe to reuse
      * FD sets after select(). */

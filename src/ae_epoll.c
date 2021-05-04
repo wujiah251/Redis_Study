@@ -35,31 +35,24 @@
  * 事件状态
  */
 typedef struct aeApiState {
-
     // epoll_event 实例描述符
     int epfd;
-
     // 事件槽
     struct epoll_event *events;
-
 } aeApiState;
 
 /*
  * 创建一个新的 epoll 实例，并将它赋值给 eventLoop
  */
 static int aeApiCreate(aeEventLoop *eventLoop) {
-
     aeApiState *state = zmalloc(sizeof(aeApiState));
-
     if (!state) return -1;
-
     // 初始化事件槽空间
     state->events = zmalloc(sizeof(struct epoll_event)*eventLoop->setsize);
     if (!state->events) {
         zfree(state);
         return -1;
     }
-
     // 创建 epoll 实例
     state->epfd = epoll_create(1024); /* 1024 is just a hint for the kernel */
     if (state->epfd == -1) {
@@ -67,7 +60,6 @@ static int aeApiCreate(aeEventLoop *eventLoop) {
         zfree(state);
         return -1;
     }
-
     // 赋值给 eventLoop
     eventLoop->apidata = state;
     return 0;
@@ -101,11 +93,7 @@ static int aeApiAddEvent(aeEventLoop *eventLoop, int fd, int mask) {
     aeApiState *state = eventLoop->apidata;
     struct epoll_event ee;
 
-    /* If the fd was already monitored for some event, we need a MOD
-     * operation. Otherwise we need an ADD operation. 
-     *
-     * 如果 fd 没有关联任何事件，那么这是一个 ADD 操作。
-     *
+    /* 如果 fd 没有关联任何事件，那么这是一个 ADD 操作。
      * 如果已经关联了某个/某些事件，那么这是一个 MOD 操作。
      */
     int op = eventLoop->events[fd].mask == AE_NONE ?

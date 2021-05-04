@@ -66,12 +66,17 @@ static int evport_debug = 0;
 #define MAX_EVENT_BATCHSZ 512
 
 typedef struct aeApiState {
+    // evport端口
     int     portfd;                             /* event port */
+    // 监听的端口个数
     int     npending;                           /* # of pending fds */
+    // 监听的端口的fd
     int     pending_fds[MAX_EVENT_BATCHSZ];     /* pending fds */
+    // 存储事件的flags
     int     pending_masks[MAX_EVENT_BATCHSZ];   /* pending fds' masks */
 } aeApiState;
 
+// 申请一个port
 static int aeApiCreate(aeEventLoop *eventLoop) {
     int i;
     aeApiState *state = zmalloc(sizeof(aeApiState));
@@ -99,6 +104,7 @@ static int aeApiResize(aeEventLoop *eventLoop, int setsize) {
     return 0;
 }
 
+// 释放一个事件循环的io复用端口
 static void aeApiFree(aeEventLoop *eventLoop) {
     aeApiState *state = eventLoop->apidata;
 
@@ -106,6 +112,7 @@ static void aeApiFree(aeEventLoop *eventLoop) {
     zfree(state);
 }
 
+// 查找监听的fd对应的索引
 static int aeApiLookupPending(aeApiState *state, int fd) {
     int i;
 
@@ -117,9 +124,7 @@ static int aeApiLookupPending(aeApiState *state, int fd) {
     return (-1);
 }
 
-/*
- * Helper function to invoke port_associate for the given fd and mask.
- */
+// 利用port_associate关联要监听的fd
 static int aeApiAssociate(const char *where, int portfd, int fd, int mask) {
     int events = 0;
     int rv, err;
@@ -282,6 +287,7 @@ static int aeApiPoll(aeEventLoop *eventLoop, struct timeval *tvp) {
      * So if we get ETIME, we check nevents, too.
      */
     nevents = 1;
+    // 发生的事件存储在event，nevents存储数量
     if (port_getn(state->portfd, event, MAX_EVENT_BATCHSZ, &nevents,
         tsp) == -1 && (errno != ETIME || nevents == 0)) {
         if (errno == ETIME || errno == EINTR)
