@@ -62,14 +62,13 @@
 
 /*
  * 初始化事件处理器状态
+ * setsize是监听的fd个数
  */
 aeEventLoop *aeCreateEventLoop(int setsize) {
     aeEventLoop *eventLoop;
     int i;
-
     // 创建事件状态结构
     if ((eventLoop = zmalloc(sizeof(*eventLoop))) == NULL) goto err;
-
     // 初始化文件事件结构和已就绪文件事件结构数组
     eventLoop->events = zmalloc(sizeof(aeFileEvent)*setsize);
     eventLoop->fired = zmalloc(sizeof(aeFiredEvent)*setsize);
@@ -78,18 +77,13 @@ aeEventLoop *aeCreateEventLoop(int setsize) {
     eventLoop->setsize = setsize;
     // 初始化执行最近一次执行时间
     eventLoop->lastTime = time(NULL);
-
     // 初始化时间事件结构
     eventLoop->timeEventHead = NULL;
     eventLoop->timeEventNextId = 0;
-
     eventLoop->stop = 0;
     eventLoop->maxfd = -1;
     eventLoop->beforesleep = NULL;
     if (aeApiCreate(eventLoop) == -1) goto err;
-
-    /* Events with mask == AE_NONE are not set. So let's initialize the
-     * vector with it. */
     // 初始化监听事件
     for (i = 0; i < setsize; i++)
         eventLoop->events[i].mask = AE_NONE;
@@ -112,25 +106,13 @@ int aeGetSetSize(aeEventLoop *eventLoop) {
     return eventLoop->setsize;
 }
 
-/* Resize the maximum set size of the event loop.
- *
- * 调整事件槽的大小
- *
- * If the requested set size is smaller than the current set size, but
- * there is already a file descriptor in use that is >= the requested
- * set size minus one, AE_ERR is returned and the operation is not
- * performed at all.
- *
+/* 调整事件槽的大小
  * 如果尝试调整大小为 setsize ，但是有 >= setsize 的文件描述符存在
  * 那么返回 AE_ERR ，不进行任何动作。
- *
- * Otherwise AE_OK is returned and the operation is successful. 
- *
  * 否则，执行大小调整操作，并返回 AE_OK 。
  */
 int aeResizeSetSize(aeEventLoop *eventLoop, int setsize) {
     int i;
-
     if (setsize == eventLoop->setsize) return AE_OK;
     if (eventLoop->maxfd >= setsize) return AE_ERR;
     if (aeApiResize(eventLoop,setsize) == -1) return AE_ERR;
@@ -233,7 +215,6 @@ void aeDeleteFileEvent(aeEventLoop *eventLoop, int fd, int mask)
 int aeGetFileEvents(aeEventLoop *eventLoop, int fd) {
     if (fd >= eventLoop->setsize) return 0;
     aeFileEvent *fe = &eventLoop->events[fd];
-
     return fe->mask;
 }
 
@@ -279,6 +260,7 @@ static void aeAddMillisecondsToNow(long long milliseconds, long *sec, long *ms) 
 
 /*
  * 创建时间事件
+ * 参数分别是：事件处理器、时间、时间事件处理函数、多路复用库私有数据、事件释放函数
  */
 long long aeCreateTimeEvent(aeEventLoop *eventLoop, long long milliseconds,
         aeTimeProc *proc, void *clientData,
@@ -305,9 +287,9 @@ long long aeCreateTimeEvent(aeEventLoop *eventLoop, long long milliseconds,
     te->clientData = clientData;
 
     // 将新事件放入表头
+    // 每个eventLoop都有一个时间事件链表
     te->next = eventLoop->timeEventHead;
     eventLoop->timeEventHead = te;
-
     return id;
 }
 
@@ -317,26 +299,20 @@ long long aeCreateTimeEvent(aeEventLoop *eventLoop, long long milliseconds,
 int aeDeleteTimeEvent(aeEventLoop *eventLoop, long long id)
 {
     aeTimeEvent *te, *prev = NULL;
-
     // 遍历链表
     te = eventLoop->timeEventHead;
     while(te) {
-
         // 发现目标事件，删除
         if (te->id == id) {
-
             if (prev == NULL)
                 eventLoop->timeEventHead = te->next;
             else
                 prev->next = te->next;
-
             // 执行清理处理器
             if (te->finalizerProc)
                 te->finalizerProc(eventLoop, te->clientData);
-
             // 释放时间事件
             zfree(te);
-
             return AE_OK;
         }
         prev = te;
@@ -346,19 +322,11 @@ int aeDeleteTimeEvent(aeEventLoop *eventLoop, long long id)
     return AE_ERR; /* NO event with the specified ID found */
 }
 
-/* Search the first timer to fire.
- * This operation is useful to know how many time the select can be
- * put in sleep without to delay any event.
- * If there are no timers NULL is returned.
- *
- * Note that's O(N) since time events are unsorted.
- * Possible optimizations (not needed by Redis so far, but...):
- * 1) Insert the event in order, so that the nearest is just the head.
- *    Much better but still insertion or deletion of timers is O(N).
- * 2) Use a skiplist to have this operation as O(1) and insertion as O(log(N)).
- */
-// 寻找里目前时间最近的时间事件
-// 因为链表是乱序的，所以查找复杂度为 O（N）
+
+/* 
+ * 寻找里目前时间最近的时间事件
+ * 因为链表是乱序的，所以查找复杂度为 O（N）
+*/
 static aeTimeEvent *aeSearchNearestTimer(aeEventLoop *eventLoop)
 {
     aeTimeEvent *te = eventLoop->timeEventHead;
@@ -374,26 +342,17 @@ static aeTimeEvent *aeSearchNearestTimer(aeEventLoop *eventLoop)
     return nearest;
 }
 
-/* Process time events
- *
+/* 
  * 处理所有已到达的时间事件
  */
 static int processTimeEvents(aeEventLoop *eventLoop) {
-    int processed = 0;
+    int processed = 0;  //记录执行了几个时间事件
     aeTimeEvent *te;
     long long maxId;
     time_t now = time(NULL);
-
-    /* If the system clock is moved to the future, and then set back to the
-     * right value, time events may be delayed in a random way. Often this
-     * means that scheduled operations will not be performed soon enough.
-     *
-     * Here we try to detect system clock skews, and force all the time
-     * events to be processed ASAP when this happens: the idea is that
-     * processing events earlier is less dangerous than delaying them
-     * indefinitely, and practice suggests it is. */
     // 通过重置事件的运行时间，
     // 防止因时间穿插（skew）而造成的事件处理混乱
+    // TODO:没看懂
     if (now < eventLoop->lastTime) {
         te = eventLoop->timeEventHead;
         while(te) {
@@ -411,40 +370,22 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
     while(te) {
         long now_sec, now_ms;
         long long id;
-
         // 跳过无效事件
         if (te->id > maxId) {
             te = te->next;
             continue;
         }
-        
         // 获取当前时间
         aeGetTime(&now_sec, &now_ms);
-
         // 如果当前时间等于或等于事件的执行时间，那么说明事件已到达，执行这个事件
         if (now_sec > te->when_sec ||
             (now_sec == te->when_sec && now_ms >= te->when_ms))
         {
             int retval;
-
             id = te->id;
             // 执行事件处理器，并获取返回值
             retval = te->timeProc(eventLoop, id, te->clientData);
             processed++;
-            /* After an event is processed our time event list may
-             * no longer be the same, so we restart from head.
-             * Still we make sure to don't process events registered
-             * by event handlers itself in order to don't loop forever.
-             * To do so we saved the max ID we want to handle.
-             *
-             * FUTURE OPTIMIZATIONS:
-             * Note that this is NOT great algorithmically. Redis uses
-             * a single time event so it's not a problem but the right
-             * way to do this is to add the new elements on head, and
-             * to flag deleted elements in a special way for later
-             * deletion (putting references to the nodes to delete into
-             * another linked list). */
-
             // 记录是否有需要循环执行这个事件时间
             if (retval != AE_NOMORE) {
                 // 是的， retval 毫秒之后继续执行这个时间事件
@@ -464,14 +405,7 @@ static int processTimeEvents(aeEventLoop *eventLoop) {
     return processed;
 }
 
-/* Process every pending time event, then every pending file event
- * (that may be registered by time event callbacks just processed).
- *
- * 处理所有已到达的时间事件，以及所有已就绪的文件事件。
- *
- * Without special flags the function sleeps until some file event
- * fires, or when the next time event occurs (if any).
- *
+/* 处理所有已到达的时间事件，以及所有已就绪的文件事件。
  * 如果不传入特殊 flags 的话，那么函数睡眠直到文件事件就绪，
  * 或者下个时间事件到达（如果有的话）。
  *
@@ -501,17 +435,11 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
 
     /* Nothing to do? return ASAP */
     if (!(flags & AE_TIME_EVENTS) && !(flags & AE_FILE_EVENTS)) return 0;
-
-    /* Note that we want call select() even if there are no
-     * file events to process as long as we want to process time
-     * events, in order to sleep until the next time event is ready
-     * to fire. */
     if (eventLoop->maxfd != -1 ||
         ((flags & AE_TIME_EVENTS) && !(flags & AE_DONT_WAIT))) {
         int j;
         aeTimeEvent *shortest = NULL;
         struct timeval tv, *tvp;
-
         // 获取最近的时间事件
         if (flags & AE_TIME_EVENTS && !(flags & AE_DONT_WAIT))
             shortest = aeSearchNearestTimer(eventLoop);
@@ -519,9 +447,6 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
             // 如果时间事件存在的话
             // 那么根据最近可执行时间事件和现在时间的时间差来决定文件事件的阻塞时间
             long now_sec, now_ms;
-
-            /* Calculate the time missing for the nearest
-             * timer to fire. */
             // 计算距今最近的时间事件还要多久才能达到
             // 并将该时间距保存在 tv 结构中
             aeGetTime(&now_sec, &now_ms);
@@ -533,18 +458,12 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
             } else {
                 tvp->tv_usec = (shortest->when_ms - now_ms)*1000;
             }
-
             // 时间差小于 0 ，说明事件已经可以执行了，将秒和毫秒设为 0 （不阻塞）
             if (tvp->tv_sec < 0) tvp->tv_sec = 0;
             if (tvp->tv_usec < 0) tvp->tv_usec = 0;
         } else {
-            
             // 执行到这一步，说明没有时间事件
             // 那么根据 AE_DONT_WAIT 是否设置来决定是否阻塞，以及阻塞的时间长度
-
-            /* If we have to check for events but need to return
-             * ASAP because of AE_DONT_WAIT we need to set the timeout
-             * to zero */
             if (flags & AE_DONT_WAIT) {
                 // 设置文件事件不阻塞
                 tv.tv_sec = tv.tv_usec = 0;
@@ -557,6 +476,7 @@ int aeProcessEvents(aeEventLoop *eventLoop, int flags)
         }
 
         // 处理文件事件，阻塞时间由 tvp 决定
+        // 通过调用系统提供的io复用机制（比如epoll）把就绪事件存储到eventLoop->fired
         numevents = aeApiPoll(eventLoop, tvp);
         for (j = 0; j < numevents; j++) {
             // 从已就绪数组中获取事件
