@@ -32,38 +32,31 @@
 /* ================================ MULTI/EXEC ============================== */
 
 /* Client state initialization for MULTI/EXEC 
- *
  * 初始化客户端的事务状态
+ * 每个客户端都会保存一个事务状态
  */
 void initClientMultiState(redisClient *c) {
-
     // 命令队列
     c->mstate.commands = NULL;
-
     // 命令计数
     c->mstate.count = 0;
 }
 
-/* Release all the resources associated with MULTI/EXEC state 
- *
+/* 
  * 释放所有事务状态相关的资源
  */
 void freeClientMultiState(redisClient *c) {
     int j;
-
     // 遍历事务队列
     for (j = 0; j < c->mstate.count; j++) {
         int i;
         multiCmd *mc = c->mstate.commands+j;
-
         // 释放所有命令参数
         for (i = 0; i < mc->argc; i++)
             decrRefCount(mc->argv[i]);
-
         // 释放参数数组本身
         zfree(mc->argv);
     }
-
     // 释放事务队列
     zfree(c->mstate.commands);
 }
@@ -75,14 +68,11 @@ void freeClientMultiState(redisClient *c) {
 void queueMultiCommand(redisClient *c) {
     multiCmd *mc;
     int j;
-
     // 为新数组元素分配空间
     c->mstate.commands = zrealloc(c->mstate.commands,
             sizeof(multiCmd)*(c->mstate.count+1));
-
-    // 指向新元素
+    // mc指向新元素
     mc = c->mstate.commands+c->mstate.count;
-
     // 设置事务的命令、命令参数数量，以及命令的参数
     mc->cmd = c->cmd;
     mc->argc = c->argc;
@@ -90,30 +80,25 @@ void queueMultiCommand(redisClient *c) {
     memcpy(mc->argv,c->argv,sizeof(robj*)*c->argc);
     for (j = 0; j < c->argc; j++)
         incrRefCount(mc->argv[j]);
-
     // 事务命令数量计数器增一
     c->mstate.count++;
 }
 
+/*
+ * 取消一个事务
+ */
 void discardTransaction(redisClient *c) {
-
     // 重置事务状态
     freeClientMultiState(c);
     initClientMultiState(c);
-
     // 屏蔽事务状态
     c->flags &= ~(REDIS_MULTI|REDIS_DIRTY_CAS|REDIS_DIRTY_EXEC);;
-
     // 取消对所有键的监视
     unwatchAllKeys(c);
 }
 
-/* Flag the transacation as DIRTY_EXEC so that EXEC will fail.
- *
+/* 
  * 将事务状态设为 DIRTY_EXEC ，让之后的 EXEC 命令失败。
- *
- * Should be called every time there is an error while queueing a command. 
- *
  * 每次在入队命令出错时调用
  */
 void flagTransaction(redisClient *c) {
@@ -122,43 +107,33 @@ void flagTransaction(redisClient *c) {
 }
 
 void multiCommand(redisClient *c) {
-
     // 不能在事务中嵌套事务
     if (c->flags & REDIS_MULTI) {
         addReplyError(c,"MULTI calls can not be nested");
         return;
     }
-
     // 打开事务 FLAG
     c->flags |= REDIS_MULTI;
-
     addReply(c,shared.ok);
 }
 
 void discardCommand(redisClient *c) {
-
     // 不能在客户端未进行事务状态之前使用
     if (!(c->flags & REDIS_MULTI)) {
         addReplyError(c,"DISCARD without MULTI");
         return;
     }
-
     discardTransaction(c);
-
     addReply(c,shared.ok);
 }
 
-/* Send a MULTI command to all the slaves and AOF file. Check the execCommand
- * implementation for more information. 
- *
+/* 
  * 向所有附属节点和 AOF 文件传播 MULTI 命令。
  */
 void execCommandPropagateMulti(redisClient *c) {
     robj *multistring = createStringObject("MULTI",5);
-
     propagate(server.multiCommand,c->db->id,&multistring,1,
               REDIS_PROPAGATE_AOF|REDIS_PROPAGATE_REPL);
-
     decrRefCount(multistring);
 }
 
@@ -175,32 +150,20 @@ void execCommand(redisClient *c) {
         return;
     }
 
-    /* Check if we need to abort the EXEC because:
-     *
-     * 检查是否需要阻止事务执行，因为：
-     *
+    /* 检查是否需要阻止事务执行，因为：
      * 1) Some WATCHed key was touched.
      *    有被监视的键已经被修改了
-     *
      * 2) There was a previous error while queueing commands.
      *    命令在入队时发生错误
      *    （注意这个行为是 2.6.4 以后才修改的，之前是静默处理入队出错命令）
-     *
-     * A failed EXEC in the first case returns a multi bulk nil object
-     * (technically it is not an error but a special behavior), while
-     * in the second an EXECABORT error is returned. 
-     *
      * 第一种情况返回多个批量回复的空对象
      * 而第二种情况则返回一个 EXECABORT 错误
      */
     if (c->flags & (REDIS_DIRTY_CAS|REDIS_DIRTY_EXEC)) {
-
         addReply(c, c->flags & REDIS_DIRTY_EXEC ? shared.execaborterr :
                                                   shared.nullmultibulk);
-
         // 取消事务
         discardTransaction(c);
-
         goto handle_monitor;
     }
 
@@ -213,40 +176,26 @@ void execCommand(redisClient *c) {
     orig_argv = c->argv;
     orig_argc = c->argc;
     orig_cmd = c->cmd;
-
     addReplyMultiBulkLen(c,c->mstate.count);
-
     // 执行事务中的命令
     for (j = 0; j < c->mstate.count; j++) {
-
         // 因为 Redis 的命令必须在客户端的上下文中执行
         // 所以要将事务队列中的命令、命令参数等设置给客户端
         c->argc = c->mstate.commands[j].argc;
         c->argv = c->mstate.commands[j].argv;
         c->cmd = c->mstate.commands[j].cmd;
-
-        /* Propagate a MULTI request once we encounter the first write op.
-         *
+        /* 
          * 当遇上第一个写命令时，传播 MULTI 命令。
-         *
-         * This way we'll deliver the MULTI/..../EXEC block as a whole and
-         * both the AOF and the replication link will have the same consistency
-         * and atomicity guarantees. 
-         *
          * 这可以确保服务器和 AOF 文件以及附属节点的数据一致性。
          */
         if (!must_propagate && !(c->cmd->flags & REDIS_CMD_READONLY)) {
-
             // 传播 MULTI 命令
             execCommandPropagateMulti(c);
-
             // 计数器，只发送一次
             must_propagate = 1;
         }
-
         // 执行命令
         call(c,REDIS_CALL_FULL);
-
         /* Commands may alter argc/argv, restore mstate. */
         // 因为执行后命令、命令参数可能会被改变
         // 比如 SPOP 会被改写为 SREM

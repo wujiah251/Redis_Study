@@ -485,16 +485,12 @@ typedef struct redisDb
  */
 typedef struct multiCmd
 {
-
     // 参数
     robj **argv;
-
     // 参数数量
     int argc;
-
     // 命令指针
     struct redisCommand *cmd;
-
 } multiCmd;
 
 /*
@@ -502,10 +498,8 @@ typedef struct multiCmd
  */
 typedef struct multiState
 {
-
     // 事务队列，FIFO 顺序
     multiCmd *commands; /* Array of MULTI commands */
-
     // 已入队命令计数
     int count;                  /* Total number of MULTI commands */
     int minreplicas;            /* MINREPLICAS for synchronous replication */
