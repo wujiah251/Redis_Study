@@ -32,14 +32,7 @@
 /* This file implements keyspace events notification via Pub/Sub ad
  * described at http://redis.io/topics/keyspace-events. */
 
-/* Turn a string representing notification classes into an integer
- * representing notification classes flags xored.
- *
- * 对传入的字符串参数进行分析， 给出相应的 flags 值
- *
- * The function returns -1 if the input contains characters not mapping to
- * any class. 
- *
+/* 对传入的字符串参数进行分析， 给出相应的 flags 值
  * 如果传入的字符串中有不能识别的字符串，那么返回 -1 。
  */
 int keyspaceEventsStringToFlags(char *classes) {
@@ -67,10 +60,6 @@ int keyspaceEventsStringToFlags(char *classes) {
     return flags;
 }
 
-/* This function does exactly the revese of the function above: it gets
- * as input an integer with the xored flags and returns a string representing
- * the selected classes. The string returned is an sds string that needs to
- * be released with sdsfree(). */
 /*
  * 根据 flags 值还原设置这个 flags 所需的字符串
  */
@@ -96,21 +85,12 @@ sds keyspaceEventsFlagsToString(int flags) {
     return res;
 }
 
-/* The API provided to the rest of the Redis core is a simple function:
- *
- * notifyKeyspaceEvent(char *event, robj *key, int dbid);
- *
- * 'event' is a C string representing the event name.
- *
+/* notifyKeyspaceEvent(char *event, robj *key, int dbid);
  * event 参数是一个字符串表示的事件名
- *
- * 'key' is a Redis object representing the key name.
- *
  * key 参数是一个 Redis 对象表示的键名
- *
- * 'dbid' is the database ID where the key lives.  
- *
  * dbid 参数为键所在的数据库
+ * 键事件通知格式：__keyspace@<db>__:<key> <event>
+ * 键空间通知格式：__keyspace@<db>__:<event> <key>
  */
 void notifyKeyspaceEvent(int type, char *event, robj *key, int dbid) {
     sds chan;
