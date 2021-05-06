@@ -618,6 +618,7 @@ typedef struct redisClient
     time_t obuf_soft_limit_reached_time;
 
     // 客户端状态标志
+    // 从服务器、监视器、事务
     int flags; /* REDIS_SLAVE | REDIS_MONITOR | REDIS_MULTI ... */
 
     // 当 server.requirepass 不为 NULL 时
@@ -675,7 +676,7 @@ typedef struct redisClient
     sds peerid;            /* Cached peer ID. */
 
     /* Response buffer */
-    // 回复偏移量
+    // 回复偏移量（已有回复）
     int bufpos;
     // 回复缓冲区
     char buf[REDIS_REPLY_CHUNK_BYTES];
