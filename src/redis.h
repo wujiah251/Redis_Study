@@ -452,30 +452,21 @@ struct evictionPoolEntry
  * database. The database number is the 'id' field in the structure. */
 typedef struct redisDb
 {
-
     // 数据库键空间，保存着数据库中的所有键值对
     dict *dict; /* The keyspace for this DB */
-
     // 键的过期时间，字典的键为键，字典的值为过期事件 UNIX 时间戳
     dict *expires; /* Timeout of keys with a timeout set */
-
     // 正处于阻塞状态的键
     dict *blocking_keys; /* Keys with clients waiting for data (BLPOP) */
-
     // 可以解除阻塞的键
     dict *ready_keys; /* Blocked keys that received a PUSH */
-
     // 正在被 WATCH 命令监视的键
     dict *watched_keys; /* WATCHED keys for MULTI/EXEC CAS */
-
     struct evictionPoolEntry *eviction_pool; /* Eviction pool of keys */
-
     // 数据库号码
     int id; /* Database ID */
-
     // 数据库的键的平均 TTL ，统计信息
     long long avg_ttl; /* Average TTL, just for stats */
-
 } redisDb;
 
 /* Client MULTI/EXEC state */
@@ -506,17 +497,12 @@ typedef struct multiState
     time_t minreplicas_timeout; /* MINREPLICAS timeout as unixtime. */
 } multiState;
 
-/* This structure holds the blocking operation state for a client.
- * The fields used depend on client->btype. */
 // 阻塞状态
 typedef struct blockingState
 {
-
-    /* Generic fields. */
     // 阻塞时限
     mstime_t timeout; /* Blocking operation timeout. If UNIX current time
                              * is > timeout then the operation timed out. */
-
     /* REDIS_BLOCK_LIST */
     // 造成阻塞的键
     dict *keys; /* The keys we are waiting to terminate a blocking
@@ -552,68 +538,47 @@ typedef struct readyList
     robj *key;
 } readyList;
 
-/* With multiplexing we need to take per-client state.
- * Clients are taken in a liked list.
- *
+/* 
  * 因为 I/O 复用的缘故，需要为每个客户端维持一个状态。
- *
  * 多个客户端状态被服务器用链表连接起来。
  */
 typedef struct redisClient
 {
-
     // 套接字描述符
     int fd;
-
     // 当前正在使用的数据库
     redisDb *db;
-
     // 当前正在使用的数据库的 id （号码）
     int dictid;
-
     // 客户端的名字
     robj *name; /* As set by CLIENT SETNAME */
-
     // 查询缓冲区
     sds querybuf;
-
     // 查询缓冲区长度峰值
     size_t querybuf_peak; /* Recent (100ms or more) peak of querybuf size */
-
     // 参数数量
     int argc;
-
     // 参数对象数组
     robj **argv;
-
     // 记录被客户端执行的命令
     struct redisCommand *cmd, *lastcmd;
-
     // 请求的类型：内联命令还是多条命令
     int reqtype;
-
     // 剩余未读取的命令内容数量
     int multibulklen; /* number of multi bulk arguments left to read */
-
     // 命令内容的长度
     long bulklen; /* length of bulk argument in multi bulk request */
-
     // 回复链表
     list *reply;
-
     // 回复链表中对象的总大小
     unsigned long reply_bytes; /* Tot bytes of objects in reply list */
-
     // 已发送字节，处理 short write 用
     int sentlen; /* Amount of bytes already sent in the current
                                buffer or object being sent. */
-
     // 创建客户端的时间
     time_t ctime; /* Client creation time */
-
     // 客户端最后一次和服务器互动的时间
     time_t lastinteraction; /* time of the last interaction, used for timeout */
-
     // 客户端的输出缓冲区超过软性限制的时间
     time_t obuf_soft_limit_reached_time;
 
@@ -686,10 +651,8 @@ typedef struct redisClient
 // 服务器的保存条件（BGSAVE 自动执行的条件）
 struct saveparam
 {
-
     // 多少秒之内
     time_t seconds;
-
     // 发生多少次修改
     int changes;
 };
@@ -738,16 +701,12 @@ typedef struct zskiplistNode
  */
 typedef struct zskiplist
 {
-
     // 表头节点和表尾节点
     struct zskiplistNode *header, *tail;
-
     // 表中节点的数量
     unsigned long length;
-
     // 表中层数最大的节点的层数
     int level;
-
 } zskiplist;
 
 /*
@@ -755,16 +714,13 @@ typedef struct zskiplist
  */
 typedef struct zset
 {
-
     // 字典，键为成员，值为分值
     // 用于支持 O(1) 复杂度的按成员取分值操作
     dict *dict;
-
     // 跳跃表，按分值排序成员
     // 用于支持平均复杂度为 O(log N) 的按分值定位成员操作
     // 以及范围操作
     zskiplist *zsl;
-
 } zset;
 
 // 客户端缓冲区限制
@@ -795,16 +751,12 @@ extern clientBufferLimitsConfig clientBufferLimitsDefaults[REDIS_CLIENT_LIMIT_NU
  */
 typedef struct redisOp
 {
-
     // 参数
     robj **argv;
-
     // 参数数量、数据库 ID 、传播目标
     int argc, dbid, target;
-
     // 被执行命令的指针
     struct redisCommand *cmd;
-
 } redisOp;
 
 /* Defines an array of Redis operations. There is an API to add to this
@@ -1263,13 +1215,10 @@ struct redisServer
  */
 typedef struct pubsubPattern
 {
-
     // 订阅模式的客户端
     redisClient *client;
-
     // 被订阅的模式
     robj *pattern;
-
 } pubsubPattern;
 
 typedef void redisCommandProc(redisClient *c);
@@ -1280,33 +1229,25 @@ typedef int *redisGetKeysProc(struct redisCommand *cmd, robj **argv, int argc, i
  */
 struct redisCommand
 {
-
     // 命令名字
     char *name;
-
     // 实现函数
     redisCommandProc *proc;
-
     // 参数个数
     int arity;
-
     // 字符串表示的 FLAG
     char *sflags; /* Flags as string representation, one char per flag. */
-
     // 实际 FLAG
     int flags; /* The actual flags, obtained from the 'sflags' field. */
-
     /* Use a function to determine keys arguments in a command line.
      * Used for Redis Cluster redirect. */
     // 从命令中判断命令的键参数。在 Redis 集群转向时使用。
     redisGetKeysProc *getkeys_proc;
-
     /* What keys should be loaded in background when calling this command? */
     // 指定哪些参数是 key
     int firstkey; /* The first argument that's a key (0 = no keys) */
     int lastkey;  /* The last argument that's a key */
     int keystep;  /* The step between first and last key */
-
     // 统计信息
     // microseconds 记录了命令执行耗费的总毫微秒数
     // calls 是命令被执行的总次数
@@ -1350,68 +1291,48 @@ typedef struct _redisSortOperation
  */
 typedef struct
 {
-
     // 列表对象
     robj *subject;
-
     // 对象所使用的编码
     unsigned char encoding;
-
     // 迭代的方向
     unsigned char direction; /* Iteration direction */
-
     // ziplist 索引，迭代 ziplist 编码的列表时使用
     unsigned char *zi;
-
     // 链表节点的指针，迭代双端链表编码的列表时使用
     listNode *ln;
-
 } listTypeIterator;
 
-/* Structure for an entry while iterating over a list.
- *
+/* 
  * 迭代列表时使用的记录结构，
  * 用于保存迭代器，以及迭代器返回的列表节点。
  */
 typedef struct
 {
-
     // 列表迭代器
     listTypeIterator *li;
-
     // ziplist 节点索引
     unsigned char *zi; /* Entry in ziplist */
-
     // 双端链表节点指针
     listNode *ln; /* Entry in linked list */
-
 } listTypeEntry;
 
-/* Structure to hold set iteration abstraction. */
 /*
  * 多态集合迭代器
  */
 typedef struct
 {
-
     // 被迭代的对象
     robj *subject;
-
     // 对象的编码
     int encoding;
-
     // 索引值，编码为 intset 时使用
     int ii; /* intset iterator */
-
     // 字典迭代器，编码为 HT 时使用
     dictIterator *di;
-
 } setTypeIterator;
 
-/* Structure to hold hash iteration abstraction. Note that iteration over
- * hashes involves both fields and values. Because it is possible that
- * not both are required, store pointers in the iterator to avoid
- * unnecessary memory allocation for fields/values. */
+
 /*
  * 哈希对象的迭代器
  */

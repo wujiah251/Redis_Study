@@ -43,26 +43,47 @@
 #define AF_LOCAL AF_UNIX
 #endif
 
+// 创建一个阻塞TCP已连接套接字
 int anetTcpConnect(char *err, char *addr, int port);
+// 创建一个非阻塞TCP已连接套接字
 int anetTcpNonBlockConnect(char *err, char *addr, int port);
+// 创建一个非阻塞已连接套接字并绑定到指定的协议地址
 int anetTcpNonBlockBindConnect(char *err, char *addr, int port, char *source_addr);
+// 创建一个阻塞本地已连接套接字
 int anetUnixConnect(char *err, char *path);
+// 创建一个非阻塞本地已连接套接字
 int anetUnixNonBlockConnect(char *err, char *path);
+// 从套接字中读出指定数量的字符
 int anetRead(int fd, char *buf, int count);
+// 解释host地址到ipbuf中
 int anetResolve(char *err, char *host, char *ipbuf, size_t ipbuf_len);
+// 单单解析IP的地址
 int anetResolveIP(char *err, char *host, char *ipbuf, size_t ipbuf_len);
+// 创建一个监听套接字
 int anetTcpServer(char *err, int port, char *bindaddr, int backlog);
+// 创建一个监听套接字（IPv6）
 int anetTcp6Server(char *err, int port, char *bindaddr, int backlog);
+// 创建一个本地监听套接字
 int anetUnixServer(char *err, char *path, mode_t perm, int backlog);
+// 从已连接队列中获取已连接套接字
 int anetTcpAccept(char *err, int serversock, char *ip, size_t ip_len, int *port);
+// 从已连接队列中获取已连接套接字
 int anetUnixAccept(char *err, int serversock);
+// 向套接字写入缓冲区内容
 int anetWrite(int fd, char *buf, int count);
+// 将套接字描述符设置成非阻塞
 int anetNonBlock(char *err, int fd);
+// 禁用Nagle算法
 int anetEnableTcpNoDelay(char *err, int fd);
+// 启用Nagle算法(如果一个包小于MSS会等待其他包一起发送)
 int anetDisableTcpNoDelay(char *err, int fd);
+// 开启socket的长连接选项
 int anetTcpKeepAlive(char *err, int fd);
+// 获取客户端的ip和端口号
 int anetPeerToString(int fd, char *ip, size_t ip_len, int *port);
+// 修改长连接选项
 int anetKeepAlive(char *err, int fd, int interval);
+// 获取服务器本机的IP和端口号
 int anetSockName(int fd, char *ip, size_t ip_len, int *port);
 
 #endif
