@@ -146,12 +146,10 @@ void setCommand(redisClient *c) {
     robj *expire = NULL;
     int unit = UNIT_SECONDS;
     int flags = REDIS_SET_NO_FLAGS;
-
     // 设置选项参数
     for (j = 3; j < c->argc; j++) {
         char *a = c->argv[j]->ptr;
         robj *next = (j == c->argc-1) ? NULL : c->argv[j+1];
-
         if ((a[0] == 'n' || a[0] == 'N') &&
             (a[1] == 'x' || a[1] == 'X') && a[2] == '\0') {
             flags |= REDIS_SET_NX;
@@ -173,7 +171,6 @@ void setCommand(redisClient *c) {
             return;
         }
     }
-
     // 尝试对值对象进行编码
     c->argv[2] = tryObjectEncoding(c->argv[2]);
 

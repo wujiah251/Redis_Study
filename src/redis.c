@@ -3902,12 +3902,14 @@ void redisSetProcTitle(char *title) {
 #endif
 }
 
+// 主进程
 int main(int argc, char **argv) {
     struct timeval tv;
 
     /* We need to initialize our libraries, and the server configuration. */
     // 初始化库
 #ifdef INIT_SETPROCTITLE_REPLACEMENT
+    // 主要是设置redis各个进程名
     spt_init(argc, argv);
 #endif
     setlocale(LC_COLLATE,"");
