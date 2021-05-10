@@ -46,16 +46,13 @@ void sunionDiffGenericCommand(redisClient *c, robj **setkeys, int setnum, robj *
  * 否则，返回普通的哈希表。
  */
 robj *setTypeCreate(robj *value) {
-
     if (isObjectRepresentableAsLongLong(value,NULL) == REDIS_OK)
         return createIntsetObject();
-
     return createSetObject();
 }
 
 /*
  * 多态 add 操作
- *
  * 添加成功返回 1 ，如果元素已经存在，返回 0 。
  */
 int setTypeAdd(robj *subject, robj *value) {

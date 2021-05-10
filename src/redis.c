@@ -122,56 +122,40 @@ struct redisCommand *commandTable;
  * Command flags are expressed using strings where every character represents
  * a flag. Later the populateCommandTable() function will take care of
  * populating the real 'flags' field using this characters.
- *
  * 命令的 FLAG 首先由 SFLAG 域设置，之后 populateCommandTable() 函数从 sflags 属性中计算出真正的 FLAG 到 flags 属性中。
- *
- * This is the meaning of the flags:
- *
  * 以下是各个 FLAG 的意义：
- *
  * w: write command (may modify the key space).
  *    写入命令，可能会修改 key space
- *
  * r: read command  (will never modify the key space).
  *    读命令，不修改 key space
  * m: may increase memory usage once called. Don't allow if out of memory.
  *    可能会占用大量内存的命令，调用时对内存占用进行检查
- *
  * a: admin command, like SAVE or SHUTDOWN.
  *    管理用途的命令，比如 SAVE 和 SHUTDOWN
- *
  * p: Pub/Sub related command.
  *    发布/订阅相关的命令
- *
  * f: force replication of this command, regardless of server.dirty.
  *    无视 server.dirty ，强制复制这个命令。
- *
  * s: command not allowed in scripts.
  *    不允许在脚本中使用的命令
- *
  * R: random command. Command is not deterministic, that is, the same command
  *    with the same arguments, with the same key space, may have different
  *    results. For instance SPOP and RANDOMKEY are two random commands.
  *    随机命令。
  *    命令是非确定性的：对于同样的命令，同样的参数，同样的键，结果可能不同。
  *    比如 SPOP 和 RANDOMKEY 就是这样的例子。
- *
  * S: Sort command output array if called from script, so that the output
  *    is deterministic.
  *    如果命令在 Lua 脚本中执行，那么对输出进行排序，从而得出确定性的输出。
- *
  * l: Allow command while loading the database.
  *    允许在载入数据库时使用的命令。
- *
  * t: Allow command while a slave has stale data but is not allowed to
  *    server this data. Normally no command is accepted in this condition
  *    but just a few.
  *    允许在附属节点带有过期数据时执行的命令。
  *    这类命令很少有，只有几个。
- *
  * M: Do not automatically propagate the command on MONITOR.
  *    不要在 MONITOR 模式下自动广播的命令。
- *
  * k: Perform an implicit ASKING for this command, so the command will be
  *    accepted in cluster mode if the slot is marked as 'importing'.
  *    为这个命令执行一个显式的 ASKING ，
@@ -395,7 +379,6 @@ void redisLog(int level, const char *fmt, ...) {
 
 /* Log a fixed message without printf-alike capabilities, in a way that is
  * safe to call from a signal handler.
- *
  * We actually use this only for signals that are not fatal from the point
  * of view of Redis. Signals that are going to kill the server anyway and
  * where we need printf-alike features are served by redisLog(). */
@@ -1884,44 +1867,37 @@ void initServerConfig() {
  * the configured max number of clients. It also reserves a number of file
  * descriptors (REDIS_MIN_RESERVED_FDS) for extra operations of
  * persistence, listening sockets, log files and so forth.
- *
  * If it will not be possible to set the limit accordingly to the configured
  * max number of clients, the function will do the reverse setting
  * server.maxclients to the value that we can actually handle. */
 void adjustOpenFilesLimit(void) {
     rlim_t maxfiles = server.maxclients+REDIS_MIN_RESERVED_FDS;
     struct rlimit limit;
-
     if (getrlimit(RLIMIT_NOFILE,&limit) == -1) {
         redisLog(REDIS_WARNING,"Unable to obtain the current NOFILE limit (%s), assuming 1024 and setting the max clients configuration accordingly.",
             strerror(errno));
         server.maxclients = 1024-REDIS_MIN_RESERVED_FDS;
     } else {
         rlim_t oldlimit = limit.rlim_cur;
-
         /* Set the max number of files if the current limit is not enough
          * for our needs. */
         if (oldlimit < maxfiles) {
             rlim_t f;
             int setrlimit_error = 0;
-
             /* Try to set the file limit to match 'maxfiles' or at least
              * to the higher value supported less than maxfiles. */
             f = maxfiles;
             while(f > oldlimit) {
                 int decr_step = 16;
-
                 limit.rlim_cur = f;
                 limit.rlim_max = f;
                 if (setrlimit(RLIMIT_NOFILE,&limit) != -1) break;
                 setrlimit_error = errno;
-
                 /* We failed to set file limit to 'f'. Try with a
                  * smaller limit decrementing by a few FDs per iteration. */
                 if (f < decr_step) break;
                 f -= decr_step;
             }
-
             /* Assume that the limit we get initially is still valid if
              * our last try was even lower. */
             if (f < oldlimit) f = oldlimit;
@@ -2617,7 +2593,7 @@ int processCommand(redisClient *c) {
                 }
                 return REDIS_OK;
 
-            // 命令针对的槽和键不是本节点处理的，进行转向
+            // 命令针对的槽和键不是本节点处理的，告诉客户端进行转向
             } else if (n != server.cluster->myself) {
                 flagTransaction(c);
                 // -<ASK or MOVED> <slot> <ip>:<port>
@@ -2781,14 +2757,10 @@ int processCommand(redisClient *c) {
 // 关闭监听套接字
 void closeListeningSockets(int unlink_unix_socket) {
     int j;
-
     for (j = 0; j < server.ipfd_count; j++) close(server.ipfd[j]);
-
     if (server.sofd != -1) close(server.sofd);
-
     if (server.cluster_enabled)
         for (j = 0; j < server.cfd_count; j++) close(server.cfd[j]);
-
     if (unlink_unix_socket && server.unixsocket) {
         redisLog(REDIS_NOTICE,"Removing the unix socket file.");
         unlink(server.unixsocket); /* don't care if this fails */

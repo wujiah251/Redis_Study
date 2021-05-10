@@ -1579,6 +1579,7 @@ typedef struct
     int minex, maxex; /* are min or max exclusive? */
 } zlexrangespec;
 
+// 跳表相关功能
 zskiplist *zslCreate(void);
 void zslFree(zskiplist *zsl);
 zskiplistNode *zslInsert(zskiplist *zsl, double score, robj *obj);
@@ -1593,17 +1594,47 @@ unsigned int zsetLength(robj *zobj);
 void zsetConvert(robj *zobj, int encoding);
 unsigned long zslGetRank(zskiplist *zsl, double score, robj *o);
 
+
 /* Core functions */
+/*
+ * 获取当前所用内存，如果超出设置的最大内存，则执行根据策略执行以下操作：
+ * 如果策略是 allkeys-lru 或者 allkeys-random则淘汰所有数据库键
+ * 如果策略是 volatile-lru、volatile-rangdom 或者 volatile-ttl，则淘汰过期数据库键
+*/
 int freeMemoryIfNeeded(void);
+/*
+ * 只有在已经读入了一个完整的命令的时候才会调用这个函数
+ * 返回1表示客户端在执行明命令之后依然存在，返回0表示客户端已经被销毁了。
+*/
 int processCommand(redisClient *c);
+/* 设置信号处理函数：sigtermHandler */
 void setupSignalHandlers(void);
+/*
+ * 根据命令名字（sds）去server.commands查找对应的命令结构
+*/
 struct redisCommand *lookupCommand(sds name);
+/*
+ * 根据命令名字（c_str）去server.commands查找对应的命令结构
+*/
 struct redisCommand *lookupCommandByCString(char *s);
+/*
+ * 根据命令名字去server.commands查找对应的命令结构
+ * 找不到则到server.orig_commands 中去查找未被改名的原始名字
+*/
 struct redisCommand *lookupCommandOrOriginal(sds name);
+/*
+ * 调用命令的实现函数
+*/
 void call(redisClient *c, int flags);
+/*
+ * 将指定命令传播到AOF、Slave
+*/
 void propagate(struct redisCommand *cmd, int dbid, robj **argv, int argc, int flags);
 void alsoPropagate(struct redisCommand *cmd, int dbid, robj **argv, int argc, int target);
 void forceCommandPropagation(redisClient *c, int flags);
+/*
+ * 关闭服务器
+*/
 int prepareForShutdown();
 #ifdef __GNUC__
 void redisLog(int level, const char *fmt, ...)
@@ -1611,21 +1642,48 @@ void redisLog(int level, const char *fmt, ...)
 #else
 void redisLog(int level, const char *fmt, ...);
 #endif
+/*
+ * 如果指定了logfile文件，则输出到logfile，如果没有则在终端打印。
+ * 根据日志级别决定是否要打印日志
+*/
 void redisLogRaw(int level, const char *msg);
+/*
+ * 由信号处理函数调用，打印相关日志
+*/
 void redisLogFromHandler(int level, const char *msg);
 void usage();
+/* 更新rehash权限，比如说正在做RDB持久化时不能rehash */
 void updateDictResizePolicy(void);
+/*
+ * 检查是否需要resize
+*/
 int htNeedsResize(dict *dict);
 void oom(const char *msg);
+/*
+ * redis.c 文件顶部的命令列表(redisCommandTable)，创建命令表
+*/
 void populateCommandTable(void);
+/*
+ * 重置命令表中的统计信息
+*/
 void resetCommandTableStats(void);
+/*
+ * 调整打开文件的限制
+*/
 void adjustOpenFilesLimit(void);
+/*
+ * 关闭监听套接字
+*/
 void closeListeningSockets(int unlink_unix_socket);
+// 更新缓存时间
 void updateCachedTime(void);
+// 重制服务器状态
 void resetServerStats(void);
+// 获得LRU时钟
 unsigned int getLRUClock(void);
 
 /* Set data type */
+/*当对象的值可以被编码为整数时，返回 intset，否则，返回普通的哈希表。*/
 robj *setTypeCreate(robj *value);
 int setTypeAdd(robj *subject, robj *value);
 int setTypeRemove(robj *subject, robj *value);
