@@ -96,7 +96,6 @@ typedef struct _rio rio;
 
 /*
  * 将 buf 中的 len 字节写入到 r 中。
- *
  * 写入成功返回实际写入的字节数，写入失败返回 -1 。
  */
 static inline size_t rioWrite(rio *r, const void *buf, size_t len) {

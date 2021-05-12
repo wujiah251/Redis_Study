@@ -42,7 +42,6 @@
 
 /*
  * 将长度为 len 的字符数组 p 写入到 rdb 中。
- *
  * 写入成功返回 len ，失败返回 -1 。
  */
 static int rdbWriteRaw(rio *rdb, void *p, size_t len) {
@@ -58,21 +57,14 @@ int rdbSaveType(rio *rdb, unsigned char type) {
     return rdbWriteRaw(rdb,&type,1);
 }
 
-/* Load a "type" in RDB format, that is a one byte unsigned integer.
- *
+/* 
  * 从 rdb 中载入 1 字节长的 type 数据。
- *
- * This function is not only used to load object types, but also special
- * "types" like the end-of-file type, the EXPIRE type, and so forth. 
- *
  * 函数即可以用于载入键的类型（rdb.h/REDIS_RDB_TYPE_*），
  * 也可以用于载入特殊标识号（rdb.h/REDIS_RDB_OPCODE_*）
  */
 int rdbLoadType(rio *rdb) {
     unsigned char type;
-
     if (rioRead(rdb,&type,1) == 0) return -1;
-
     return type;
 }
 
@@ -515,7 +507,6 @@ int rdbSaveStringObject(rio *rdb, robj *obj) {
 
 /*
  * 从 rdb 中载入一个字符串对象
- *
  * encode 不为 0 时，它指定了字符串所使用的编码。
  */ 
 robj *rdbGenericLoadStringObject(rio *rdb, int encode) {
@@ -897,7 +888,6 @@ int rdbSaveKeyValuePair(rio *rdb, robj *key, robj *val,
      */
     if (expiretime != -1) {
         /* If this key is already expired skip it 
-         *
          * 不写入已经过期的键
          */
         if (expiretime < now) return 0;
@@ -917,10 +907,8 @@ int rdbSaveKeyValuePair(rio *rdb, robj *key, robj *val,
     return 1;
 }
 
-/* Save the DB on disk. Return REDIS_ERR on error, REDIS_OK on success 
- *
+/* 
  * 将数据库保存到磁盘上。
- *
  * 保存成功返回 REDIS_OK ，出错/失败返回 REDIS_ERR 。
  */
 int rdbSave(char *filename) {
@@ -956,32 +944,25 @@ int rdbSave(char *filename) {
 
     // 遍历所有数据库
     for (j = 0; j < server.dbnum; j++) {
-
         // 指向数据库
         redisDb *db = server.db+j;
-
         // 指向数据库键空间
         dict *d = db->dict;
-
         // 跳过空数据库
         if (dictSize(d) == 0) continue;
-
         // 创建键空间迭代器
         di = dictGetSafeIterator(d);
         if (!di) {
             fclose(fp);
             return REDIS_ERR;
         }
-
-        /* Write the SELECT DB opcode 
-         *
+        /* 
          * 写入 DB 选择器
          */
         if (rdbSaveType(&rdb,REDIS_RDB_OPCODE_SELECTDB) == -1) goto werr;
         if (rdbSaveLen(&rdb,j) == -1) goto werr;
 
-        /* Iterate this DB writing every entry 
-         *
+        /* 
          * 遍历数据库，并写入每个键值对的数据
          */
         while((de = dictNext(di)) != NULL) {
@@ -1002,17 +983,12 @@ int rdbSave(char *filename) {
     }
     di = NULL; /* So that we don't release it again on error. */
 
-    /* EOF opcode 
-     *
+    /* EOF opcode
      * 写入 EOF 代码
      */
     if (rdbSaveType(&rdb,REDIS_RDB_OPCODE_EOF) == -1) goto werr;
 
-    /* CRC64 checksum. It will be zero if checksum computation is disabled, the
-     * loading code skips the check in this case. 
-     *
-     * CRC64 校验和。
-     *
+    /* CRC64 校验和。
      * 如果校验和功能已关闭，那么 rdb.cksum 将为 0 ，
      * 在这种情况下， RDB 载入时会跳过校验和检查。
      */
@@ -1026,9 +1002,7 @@ int rdbSave(char *filename) {
     if (fsync(fileno(fp)) == -1) goto werr;
     if (fclose(fp) == EOF) goto werr;
 
-    /* Use RENAME to make sure the DB file is changed atomically only
-     * if the generate DB file is ok. 
-     *
+    /* 
      * 使用 RENAME ，原子性地对临时文件进行改名，覆盖原来的 RDB 文件。
      */
     if (rename(tmpfile,filename) == -1) {
@@ -1039,7 +1013,7 @@ int rdbSave(char *filename) {
 
     // 写入完成，打印日志
     redisLog(REDIS_NOTICE,"DB saved on disk");
-
+    // TODO:这个操作在bgsave下有意义吗？
     // 清零数据库脏状态
     server.dirty = 0;
 
