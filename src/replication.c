@@ -808,16 +808,7 @@ void sendBulkToSlave(aeEventLoop *el, int fd, void *privdata, int mask) {
     }
 }
 
-/* This function is called at the end of every background saving.
- * 在每次 BGSAVE 执行完毕之后使用
- *
- * The argument bgsaveerr is REDIS_OK if the background saving succeeded
- * otherwise REDIS_ERR is passed to the function.
- * bgsaveerr 可能是 REDIS_OK 或者 REDIS_ERR ，显示 BGSAVE 的执行结果
- *
- * The goal of this function is to handle slaves waiting for a successful
- * background saving in order to perform non-blocking synchronization. 
- * 
+/* 在每次 BGSAVE 执行完毕之后使用
  * 这个函数是在 BGSAVE 完成之后的异步回调函数，
  * 它指导该怎么执行和 slave 相关的 RDB 下一步工作。
  */
