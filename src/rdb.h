@@ -74,28 +74,28 @@
  * 当对象是一个字符串对象时，
  * 最高两个位之后的两个位（第 3 个位和第 4 个位）指定了对象的特殊编码
  */
-#define REDIS_RDB_ENC_INT8 0        /* 8 bit signed integer */
-#define REDIS_RDB_ENC_INT16 1       /* 16 bit signed integer */
-#define REDIS_RDB_ENC_INT32 2       /* 32 bit signed integer */
-#define REDIS_RDB_ENC_LZF 3         /* string compressed with FASTLZ */
+#define REDIS_RDB_ENC_INT8 0  /* 8 bit signed integer */
+#define REDIS_RDB_ENC_INT16 1 /* 16 bit signed integer */
+#define REDIS_RDB_ENC_INT32 2 /* 32 bit signed integer */
+#define REDIS_RDB_ENC_LZF 3   /* string compressed with FASTLZ */
 
 /*
  * 对象类型在 RDB 文件中的类型
  */
 #define REDIS_RDB_TYPE_STRING 0
-#define REDIS_RDB_TYPE_LIST   1
-#define REDIS_RDB_TYPE_SET    2
-#define REDIS_RDB_TYPE_ZSET   3
-#define REDIS_RDB_TYPE_HASH   4
+#define REDIS_RDB_TYPE_LIST 1
+#define REDIS_RDB_TYPE_SET 2
+#define REDIS_RDB_TYPE_ZSET 3
+#define REDIS_RDB_TYPE_HASH 4
 
 /* 
  * 对象的编码方式
  */
-#define REDIS_RDB_TYPE_HASH_ZIPMAP    9
-#define REDIS_RDB_TYPE_LIST_ZIPLIST  10
-#define REDIS_RDB_TYPE_SET_INTSET    11
-#define REDIS_RDB_TYPE_ZSET_ZIPLIST  12
-#define REDIS_RDB_TYPE_HASH_ZIPLIST  13
+#define REDIS_RDB_TYPE_HASH_ZIPMAP 9
+#define REDIS_RDB_TYPE_LIST_ZIPLIST 10
+#define REDIS_RDB_TYPE_SET_INTSET 11
+#define REDIS_RDB_TYPE_ZSET_ZIPLIST 12
+#define REDIS_RDB_TYPE_HASH_ZIPLIST 13
 
 /* 
  * 检查给定类型是否对象
@@ -110,28 +110,46 @@
 // 以秒计算的过期时间
 #define REDIS_RDB_OPCODE_EXPIRETIME 253
 // 选择数据库
-#define REDIS_RDB_OPCODE_SELECTDB   254
+#define REDIS_RDB_OPCODE_SELECTDB 254
 // 数据库的结尾（但不是 RDB 文件的结尾）
-#define REDIS_RDB_OPCODE_EOF        255
+#define REDIS_RDB_OPCODE_EOF 255
 
+// 保存类型
 int rdbSaveType(rio *rdb, unsigned char type);
+// 载入类型
 int rdbLoadType(rio *rdb);
+// 保存时间
 int rdbSaveTime(rio *rdb, time_t t);
+// 载入时间
 time_t rdbLoadTime(rio *rdb);
+// 保存长度信息
 int rdbSaveLen(rio *rdb, uint32_t len);
+// 载入长度信息
 uint32_t rdbLoadLen(rio *rdb, int *isencoded);
+// 保存对象类型，根据对象类型给rdbSaveType传入不同的参数
 int rdbSaveObjectType(rio *rdb, robj *o);
+// 载入类型
 int rdbLoadObjectType(rio *rdb);
+// 将给定的rdb文件载入到数据库当中
 int rdbLoad(char *filename);
+// BGSAVE命令的底层实现（调用rdbSave），创建一个子进程写入rdb文件
 int rdbSaveBackground(char *filename);
+// 移除BGSAVE所产生的临时文件
 void rdbRemoveTempFile(pid_t childpid);
+// 将数据写入rdb文件
 int rdbSave(char *filename);
+// 根据类型保存对象
 int rdbSaveObject(rio *rdb, robj *o);
+// 未使用，已经被废弃
 off_t rdbSavedObjectLen(robj *o);
 off_t rdbSavedObjectPages(robj *o);
+// 从rdb文件中载入指定类型的对象。
 robj *rdbLoadObject(int type, rio *rdb);
+// 处理BGSAVE完成时发送的信号
 void backgroundSaveDoneHandler(int exitcode, int bysignal);
+// 将类型、键、值和过期时间写入到rdb文件中
 int rdbSaveKeyValuePair(rio *rdb, robj *key, robj *val, long long expiretime, long long now);
+// 载入一个字符串对象
 robj *rdbLoadStringObject(rio *rdb);
 
 #endif
