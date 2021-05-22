@@ -132,9 +132,7 @@ void *bioProcessBackgroundJobs(void *arg);
  */
 #define REDIS_THREAD_STACK_SIZE (1024*1024*4)
 
-/* Initialize the background system, spawning the thread. 
- *
- * 初始化后台任务系统，生成线程
+/* 初始化后台任务系统，生成线程
  */
 void bioInit(void) {
     pthread_attr_t attr;
@@ -142,9 +140,7 @@ void bioInit(void) {
     size_t stacksize;
     int j;
 
-    /* Initialization of state vars and objects 
-     *
-     * 初始化 job 队列，以及线程状态
+    /* 初始化 job 队列，以及线程状态
      */
     for (j = 0; j < REDIS_BIO_NUM_OPS; j++) {
         pthread_mutex_init(&bio_mutex[j],NULL);
@@ -222,43 +218,27 @@ void *bioProcessBackgroundJobs(void *arg) {
     if (pthread_sigmask(SIG_BLOCK, &sigset, NULL))
         redisLog(REDIS_WARNING,
             "Warning: can't mask SIGALRM in bio.c thread: %s", strerror(errno));
-
     while(1) {
         listNode *ln;
-
         /* The loop always starts with the lock hold. */
         if (listLength(bio_jobs[type]) == 0) {
             pthread_cond_wait(&bio_condvar[type],&bio_mutex[type]);
             continue;
         }
-
-        /* Pop the job from the queue. 
-         *
-         * 取出（但不删除）队列中的首个任务
+        /* 取出（但不删除）队列中的首个任务
          */
         ln = listFirst(bio_jobs[type]);
         job = ln->value;
-
-        /* It is now possible to unlock the background system as we know have
-         * a stand alone job structure to process.*/
         pthread_mutex_unlock(&bio_mutex[type]);
-
-        /* Process the job accordingly to its type. */
         // 执行任务
         if (type == REDIS_BIO_CLOSE_FILE) {
             close((long)job->arg1);
-
         } else if (type == REDIS_BIO_AOF_FSYNC) {
             aof_fsync((long)job->arg1);
-
         } else {
             redisPanic("Wrong job type in bioProcessBackgroundJobs().");
         }
-
         zfree(job);
-
-        /* Lock again before reiterating the loop, if there are no longer
-         * jobs to process we'll block again in pthread_cond_wait(). */
         pthread_mutex_lock(&bio_mutex[type]);
         // 将执行完成的任务从队列中删除，并减少任务计数器
         listDelNode(bio_jobs[type],ln);
@@ -266,9 +246,7 @@ void *bioProcessBackgroundJobs(void *arg) {
     }
 }
 
-/* Return the number of pending jobs of the specified type. 
- *
- * 返回等待中的 type 类型的工作的数量
+/* 返回等待中的 type 类型的工作的数量
  */
 unsigned long long bioPendingJobsOfType(int type) {
     unsigned long long val;

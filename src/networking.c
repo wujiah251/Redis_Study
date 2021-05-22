@@ -697,7 +697,6 @@ static void acceptCommonHandler(int fd, int flags) {
 
 /* 
  * 创建一个 TCP 连接处理器
- * 
  */
 void acceptTcpHandler(aeEventLoop *el, int fd, void *privdata, int mask) {
     int cport, cfd, max = MAX_ACCEPTS_PER_CALL;

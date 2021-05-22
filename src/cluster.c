@@ -3589,7 +3589,6 @@ void clusterHandleManualFailover(void) {
  * CLUSTER cron job
  * -------------------------------------------------------------------------- */
 
-/* This is executed 10 times every second */
 // 集群常规操作函数，默认每秒执行 10 次（每间隔 100 毫秒执行一次）
 void clusterCron(void) {
     dictIterator *di;
@@ -3607,10 +3606,6 @@ void clusterCron(void) {
     // 记录一次迭代
     iteration++; /* Number of times this function was called so far. */
 
-    /* The handshake timeout is the time after which a handshake node that was
-     * not turned into a normal node is removed from the nodes. Usually it is
-     * just the NODE_TIMEOUT value, but when NODE_TIMEOUT is too small we use
-     * the value of 1 second. */
     // 如果一个 handshake 节点没有在 handshake timeout 内
     // 转换成普通节点（normal node），
     // 那么节点会从 nodes 表中移除这个 handshake 节点
@@ -3619,7 +3614,6 @@ void clusterCron(void) {
     handshake_timeout = server.cluster_node_timeout;
     if (handshake_timeout < 1000) handshake_timeout = 1000;
 
-    /* Check if we have disconnected nodes and re-establish the connection. */
     // 向集群中的所有断线或者未连接节点发送消息
     di = dictGetSafeIterator(server.cluster->nodes);
     while((de = dictNext(di)) != NULL) {
@@ -3627,21 +3621,16 @@ void clusterCron(void) {
 
         // 跳过当前节点以及没有地址的节点
         if (node->flags & (REDIS_NODE_MYSELF|REDIS_NODE_NOADDR)) continue;
-
-        /* A Node in HANDSHAKE state has a limited lifespan equal to the
-         * configured node timeout. */
         // 如果 handshake 节点已超时，释放它
         if (nodeInHandshake(node) && now - node->ctime > handshake_timeout) {
             freeClusterNode(node);
             continue;
         }
-
         // 为未创建连接的节点创建连接
         if (node->link == NULL) {
             int fd;
             mstime_t old_ping_sent;
             clusterLink *link;
-
             fd = anetTcpNonBlockBindConnect(server.neterr, node->ip,
                 node->port+REDIS_CLUSTER_PORT_INCR,
                     server.bindaddr_count ? server.bindaddr[0] : NULL);
@@ -3657,12 +3646,6 @@ void clusterCron(void) {
             node->link = link;
             aeCreateFileEvent(server.el,link->fd,AE_READABLE,
                     clusterReadHandler,link);
-            /* Queue a PING in the new connection ASAP: this is crucial
-             * to avoid false positives in failure detection.
-             *
-             * If the node is flagged as MEET, we send a MEET message instead
-             * of a PING one, to force the receiver to add us in its node
-             * table. */
             // 向新连接的节点发送 PING 命令，防止节点被识进入下线
             // 如果节点被标记为 MEET ，那么发送 MEET 命令，否则发送 PING 命令
             old_ping_sent = node->ping_sent;
@@ -3672,24 +3655,12 @@ void clusterCron(void) {
             // 这不是第一次发送 PING 信息，所以可以还原这个时间
             // 等 clusterSendPing() 函数来更新它
             if (old_ping_sent) {
-                /* If there was an active ping before the link was
-                 * disconnected, we want to restore the ping time, otherwise
-                 * replaced by the clusterSendPing() call. */
                 node->ping_sent = old_ping_sent;
             }
 
-            /* We can clear the flag after the first packet is sent.
-             *
-             * 在发送 MEET 信息之后，清除节点的 MEET 标识。
-             *
-             * If we'll never receive a PONG, we'll never send new packets
-             * to this node. Instead after the PONG is received and we
-             * are no longer in meet/handshake status, we want to send
-             * normal PING packets. 
-             *
+            /* 在发送 MEET 信息之后，清除节点的 MEET 标识。
              * 如果当前节点（发送者）没能收到 MEET 信息的回复，
              * 那么它将不再向目标节点发送命令。
-             *
              * 如果接收到回复的话，那么节点将不再处于 HANDSHAKE 状态，
              * 并继续向目标节点发送普通 PING 命令。
              */
@@ -3701,14 +3672,10 @@ void clusterCron(void) {
     }
     dictReleaseIterator(di);
 
-    /* Ping some random node 1 time every 10 iterations, so that we usually ping
-     * one random node every second. */
     // clusterCron() 每执行 10 次（至少间隔一秒钟），就向一个随机节点发送 gossip 信息
     if (!(iteration % 10)) {
         int j;
 
-        /* Check a few random nodes and ping the one with the oldest
-         * pong_received time. */
         // 随机 5 个节点，选出其中一个
         for (j = 0; j < 5; j++) {
 

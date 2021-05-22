@@ -40,34 +40,16 @@
  */
 struct _rio
 {
-
-    /* Backend functions.
-     * Since this functions do not tolerate short writes or reads the return
-     * value is simplified to: zero on error, non zero on complete success. */
     // API
     size_t (*read)(struct _rio *, void *buf, size_t len);
     size_t (*write)(struct _rio *, const void *buf, size_t len);
     off_t (*tell)(struct _rio *);
-
-    /* The update_cksum method if not NULL is used to compute the checksum of
-     * all the data that was read or written so far. The method should be
-     * designed so that can be called with the current checksum, and the buf
-     * and len fields pointing to the new block of data to add to the checksum
-     * computation. */
     // 校验和计算函数，每次有写入/读取新数据时都要计算一次
     void (*update_cksum)(struct _rio *, const void *buf, size_t len);
-
-    /* The current checksum */
     // 当前校验和
     uint64_t cksum;
-
-    /* number of bytes read or written */
     size_t processed_bytes;
-
-    /* maximum single read or write chunk size */
     size_t max_processing_chunk;
-
-    /* Backend-specific vars. */
     union
     {
         struct
@@ -90,10 +72,6 @@ struct _rio
 };
 
 typedef struct _rio rio;
-
-/* The following functions are our interface with the stream. They'll call the
- * actual implementation of read / write / tell, and will update the checksum
- * if needed. */
 
 /*
  * 将 buf 中的 len 字节写入到 r 中。

@@ -45,14 +45,12 @@ extern char **environ;
 
 /* ======================== Sentinel global state =========================== */
 
-/* Address object, used to describe an ip:port pair. */
 /* 地址对象，用于保存 IP 地址和端口 */
 typedef struct sentinelAddr {
     char *ip;
     int port;
 } sentinelAddr;
 
-/* A Sentinel Redis Instance object is monitoring. */
 /* 每个被监视的 Redis 实例都会创建一个 sentinelRedisInstance 结构
  * 而每个结构的 flags 值会是以下常量的一个或多个的并 */
 // 实例是一个主服务器
@@ -177,57 +175,38 @@ typedef struct sentinelAddr {
 // Sentinel 会为每个被监视的 Redis 实例创建相应的 sentinelRedisInstance 实例
 // （被监视的实例可以是主服务器、从服务器、或者其他 Sentinel ）
 typedef struct sentinelRedisInstance {
-    
     // 标识值，记录了实例的类型，以及该实例的当前状态
     int flags;      /* See SRI_... defines */
-    
     // 实例的名字
     // 主服务器的名字由用户在配置文件中设置
     // 从服务器以及 Sentinel 的名字由 Sentinel 自动设置
     // 格式为 ip:port ，例如 "127.0.0.1:26379"
     char *name;     /* Master name from the point of view of this sentinel. */
-
     // 实例的运行 ID
     char *runid;    /* run ID of this instance. */
-
     // 配置纪元，用于实现故障转移
     uint64_t config_epoch;  /* Configuration epoch. */
-
     // 实例的地址
     sentinelAddr *addr; /* Master host. */
-
     // 用于发送命令的异步连接
     redisAsyncContext *cc; /* Hiredis context for commands. */
-
     // 用于执行 SUBSCRIBE 命令、接收频道信息的异步连接
     // 仅在实例为主服务器时使用
     redisAsyncContext *pc; /* Hiredis context for Pub / Sub. */
-
     // 已发送但尚未回复的命令数量
     int pending_commands;   /* Number of commands sent waiting for a reply. */
-
     // cc 连接的创建时间
     mstime_t cc_conn_time; /* cc connection time. */
-    
     // pc 连接的创建时间
     mstime_t pc_conn_time; /* pc connection time. */
-
     // 最后一次从这个实例接收信息的时间
     mstime_t pc_last_activity; /* Last time we received any message. */
-
     // 实例最后一次返回正确的 PING 命令回复的时间
-    mstime_t last_avail_time; /* Last time the instance replied to ping with
-                                 a reply we consider valid. */
+    mstime_t last_avail_time; 
     // 实例最后一次发送 PING 命令的时间
-    mstime_t last_ping_time;  /* Last time a pending ping was sent in the
-                                 context of the current command connection
-                                 with the instance. 0 if still not sent or
-                                 if pong already received. */
+    mstime_t last_ping_time;
     // 实例最后一次返回 PING 命令的时间，无论内容正确与否
-    mstime_t last_pong_time;  /* Last time the instance replied to ping,
-                                 whatever the reply was. That's used to check
-                                 if the link is idle and must be reconnected. */
-
+    mstime_t last_pong_time;  
     // 最后一次向频道发送问候信息的时间
     // 只在当前实例为 sentinel 时使用
     mstime_t last_pub_time;   /* Last time we sent hello via Pub/Sub. */
@@ -278,9 +257,7 @@ typedef struct sentinelRedisInstance {
     // 如果这个实例代表的是一个主服务器
     // 那么这个字典保存着主服务器属下的从服务器
     // 字典的键是从服务器的名字，字典的值是从服务器对应的 sentinelRedisInstance 结构
-    dict *slaves;       /* Slaves for this master instance. */
-
-    // SENTINEL monitor <master-name> <IP> <port> <quorum> 选项中的 quorum 参数
+    dict *slaves;
     // 判断这个实例为客观下线（objectively down）所需的支持投票数量
     int quorum;         /* Number of sentinels that need to agree on failure. */
 
@@ -366,32 +343,22 @@ typedef struct sentinelRedisInstance {
 /* Main state. */
 /* Sentinel 的状态结构 */
 struct sentinelState {
-
     // 当前纪元
     uint64_t current_epoch;     /* Current epoch. */
-
     // 保存了所有被这个 sentinel 监视的主服务器
     // 字典的键是主服务器的名字
     // 字典的值则是一个指向 sentinelRedisInstance 结构的指针
-    dict *masters;      /* Dictionary of master sentinelRedisInstances.
-                           Key is the instance name, value is the
-                           sentinelRedisInstance structure pointer. */
-
+    dict *masters;      
     // 是否进入了 TILT 模式？
     int tilt;           /* Are we in TILT mode? */
-
     // 目前正在执行的脚本的数量
     int running_scripts;    /* Number of scripts in execution right now. */
-
     // 进入 TILT 模式的时间
     mstime_t tilt_start_time;   /* When TITL started. */
-
     // 最后一次执行时间处理器的时间
     mstime_t previous_time;     /* Last time we ran the time handler. */
-
     // 一个 FIFO 队列，包含了所有需要执行的用户脚本
     list *scripts_queue;    /* Queue of user scripts to execute. */
-
 } sentinel;
 
 /* A script execution job. */
@@ -3525,6 +3492,8 @@ numargserr:
 
 /* SENTINEL INFO [section] */
 // sentinel 模式下的 INFO 命令实现
+// sentinel 通过该命令获得主服务器的当前信息
+// 获得的信息包括主服务器本身的信息和其从服务器的信息
 void sentinelInfoCommand(redisClient *c) {
     char *section = c->argc == 2 ? c->argv[1]->ptr : "default";
     sds info = sdsempty();
@@ -3547,7 +3516,6 @@ void sentinelInfoCommand(redisClient *c) {
         dictIterator *di;
         dictEntry *de;
         int master_id = 0;
-
         if (sections++) info = sdscat(info,"\r\n");
         info = sdscatprintf(info,
             "# Sentinel\r\n"
@@ -3564,7 +3532,6 @@ void sentinelInfoCommand(redisClient *c) {
         while((de = dictNext(di)) != NULL) {
             sentinelRedisInstance *ri = dictGetVal(de);
             char *status = "ok";
-
             if (ri->flags & SRI_O_DOWN) status = "odown";
             else if (ri->flags & SRI_S_DOWN) status = "sdown";
             info = sdscatprintf(info,

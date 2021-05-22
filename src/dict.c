@@ -973,7 +973,6 @@ dictIterator *dictGetSafeIterator(dict *d)
 
 /*
  * 返回迭代器指向的当前节点
- *
  * 字典迭代完毕时，返回 NULL
  * 安全迭代器会通过iterators++禁止rehash
  * 如果正在rehash就先遍历表1，再遍历表2

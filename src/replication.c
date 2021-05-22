@@ -513,46 +513,22 @@ need_full_resync:
 
 /* SYNC ad PSYNC command implemenation. */
 void syncCommand(redisClient *c) {
-
-    /* ignore SYNC if already slave or in monitor mode */
     // 已经是 SLAVE ，或者处于 MONITOR 模式，返回
     if (c->flags & REDIS_SLAVE) return;
-
-    /* Refuse SYNC requests if we are a slave but the link with our master
-     * is not ok... */
     // 如果这是一个从服务器，但与主服务器的连接仍未就绪，那么拒绝 SYNC
     if (server.masterhost && server.repl_state != REDIS_REPL_CONNECTED) {
         addReplyError(c,"Can't SYNC while not connected with my master");
         return;
     }
-
-    /* SYNC can't be issued when the server has pending data to send to
-     * the client about already issued commands. We need a fresh reply
-     * buffer registering the differences between the BGSAVE and the current
-     * dataset, so that we can copy to other slaves if needed. */
     // 在客户端仍有输出数据等待输出，不能 SYNC
     if (listLength(c->reply) != 0 || c->bufpos != 0) {
         addReplyError(c,"SYNC and PSYNC are invalid with pending output");
         return;
     }
-
     redisLog(REDIS_NOTICE,"Slave asks for synchronization");
-
-    /* Try a partial resynchronization if this is a PSYNC command.
-     * 如果这是一个 PSYNC 命令，那么尝试 partial resynchronization 。
-     *
-     * If it fails, we continue with usual full resynchronization, however
-     * when this happens masterTryPartialResynchronization() already
-     * replied with:
-     *
+    /* 如果这是一个 PSYNC 命令，那么尝试 partial resynchronization 。
      * 如果失败，那么使用 full resynchronization ，
      * 在这种情况下， masterTryPartialResynchronization() 返回以下内容：
-     *
-     * +FULLRESYNC <runid> <offset>
-     *
-     * So the slave knows the new runid and offset to try a PSYNC later
-     * if the connection with the master is lost. 
-     *
      * 这样的话，之后如果主服务器断开，那么从服务器就可以尝试 PSYNC 了。
      */
     if (!strcasecmp(c->argv[0]->ptr,"psync")) {
@@ -564,11 +540,6 @@ void syncCommand(redisClient *c) {
         } else {
             // 不可执行 PSYNC
             char *master_runid = c->argv[1]->ptr;
-            
-            /* Increment stats for failed PSYNCs, but only if the
-             * runid is not "?", as this is used by slaves to force a full
-             * resync on purpose when they are not albe to partially
-             * resync. */
             if (master_runid[0] != '?') server.stat_sync_partial_err++;
         }
     } else {
@@ -578,11 +549,7 @@ void syncCommand(redisClient *c) {
         // 旧版实现，设置标识，避免接收 REPLCONF ACK 
         c->flags |= REDIS_PRE_PSYNC;
     }
-
     // 以下是完整重同步的情况。。。
-
-    /* Full resynchronization. */
-    // 执行 full resynchronization ，增加计数
     server.stat_sync_full++;
 
     /* Here we need to check if there is a background saving operation
@@ -605,8 +572,6 @@ void syncCommand(redisClient *c) {
         }
 
         if (ln) {
-            /* Perfect, the server is already registering differences for
-             * another slave. Set the right state, and copy the buffer. */
             // 幸运的情况，可以使用目前 BGSAVE 所生成的 RDB
             copyClientOutputBuffer(c,slave);
             c->replstate = REDIS_REPL_WAIT_BGSAVE_END;
